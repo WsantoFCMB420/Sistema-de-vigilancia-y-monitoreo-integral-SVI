@@ -1,6 +1,7 @@
 import 'dart:math';
-import 'dart:async';
 import 'package:flutter/material.dart';
+import '../main.dart';
+import '../services/api_service.dart';
 
 class ReportesScreen extends StatefulWidget {
 const ReportesScreen({super.key});
@@ -21,20 +22,23 @@ static const Color _danger     = Color(0xFFE53935);
 static const Color _success    = Color(0xFF16A34A);
 static const Color _aiDark     = Color(0xFF0F2057);
 
-int _selectedNav = 3;
 late AnimationController _lineController;
 late Animation<double> _lineAnim;
 
-  // Datos gráfica línea semanal
-final List<double> _weekData = [12, 18, 14, 32, 22, 16, 28];
-final List<String> _weekLabels = ['LUN','MAR','MIE','JUE','VIE','SAB','DOM'];
+  // ── Datos de API ─────────────────────────────────────────────
+  Map<String, dynamic>? _reportData;
+  bool _loadingReport = true;
+
+  // Datos gráfica línea semanal (desde API o fallback)
+  List<double> _weekData = [0, 0, 0, 0, 0, 0, 0];
+  List<String> _weekLabels = ['LUN','MAR','MIÉ','JUE','VIE','SÁB','DOM'];
 
   // Datos gráfica barras diaria
-final List<double> _dailyData = [4, 7, 18, 28, 12, 9, 14, 8];
-final List<String> _dailyLabels = ['08:00','10:00','12:00','14:00','16:00','18:00','20:00','22:00'];
+  final List<double> _dailyData = [4, 7, 18, 28, 12, 9, 14, 8];
+  final List<String> _dailyLabels = ['08:00','10:00','12:00','14:00','16:00','18:00','20:00','22:00'];
 
-  // Mapa de calor (8x6 grid, valores 0..1)
-late List<List<double>> _heatmap;
+  // Mapa de calor
+  late List<List<double>> _heatmap;
 
 @override
 void initState() {
@@ -45,6 +49,24 @@ void initState() {
     _lineController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200));
     _lineAnim = CurvedAnimation(parent: _lineController, curve: Curves.easeOut);
     _lineController.forward();
+    _loadReport();
+}
+
+Future<void> _loadReport() async {
+    try {
+      final data = await ApiService.getReports();
+      if (!mounted) return;
+      final days = (data['last_7_days'] as List? ?? []);
+      setState(() {
+        _reportData = data;
+        _weekData   = days.map<double>((d) => (d['count'] as num).toDouble()).toList();
+        _weekLabels = days.map<String>((d) => d['label'] as String).toList();
+        _loadingReport = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingReport = false);
+    }
 }
 
 @override
@@ -57,6 +79,7 @@ void dispose() {
 Widget build(BuildContext context) {
     return Scaffold(
     backgroundColor: _bg,
+    drawer: _buildDrawer(),
     body: SafeArea(
         child: Column(
         children: [
@@ -77,7 +100,7 @@ Widget build(BuildContext context) {
                     const SizedBox(height: 16),
                     _buildHeatmap(),
                     const SizedBox(height: 16),
-                    _buildZonasAnálisis(),
+                    _buildZonasAnalisis(),
                     const SizedBox(height: 16),
                     _buildAIInsight(),
                     const SizedBox(height: 20),
@@ -99,13 +122,37 @@ Widget _buildTopBar() {
     color: _card,
     child: Row(
         children: [
+        GestureDetector(
+            onTap: () => Navigator.maybePop(context),
+            child: Container(
+            width: 36, height: 36,
+            decoration: BoxDecoration(
+                color: _blue.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(Icons.arrow_back_rounded, color: _blue, size: 20),
+            ),
+        ),
+        const SizedBox(width: 8),
+        Builder(builder: (ctx) => GestureDetector(
+            onTap: () => Scaffold.of(ctx).openDrawer(),
+            child: Container(
+            width: 36, height: 36,
+            decoration: BoxDecoration(
+                color: _blue.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(Icons.menu_rounded, color: _blue, size: 20),
+            ),
+        )),
+        const SizedBox(width: 10),
         Container(
             width: 32, height: 32,
             decoration: BoxDecoration(color: _blue, borderRadius: BorderRadius.circular(8)),
             child: const Icon(Icons.shield_rounded, color: Colors.white, size: 18),
         ),
-        const SizedBox(width: 10),
-        const Text('Sentinel Surveillance',
+        const SizedBox(width: 8),
+        const Text('Reportes',
             style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _textDark)),
         const Spacer(),
         CircleAvatar(
@@ -115,6 +162,74 @@ Widget _buildTopBar() {
         ),
         ],
     ),
+    );
+}
+
+  // ── DRAWER ────────────────────────────────────────────────────
+Widget _buildDrawer() {
+    const mods = [
+    _RepMod(Icons.dashboard_rounded,            'Dashboard',    AppRoutes.dashboard,     Color(0xFF1A5DC8)),
+    _RepMod(Icons.map_rounded,                  'Mapa',         AppRoutes.map,           Color(0xFF00897B)),
+    _RepMod(Icons.videocam_rounded,             'Cámaras',      AppRoutes.cameraView,    Color(0xFF6D4C41)),
+    _RepMod(Icons.devices_rounded,              'Dispositivos', AppRoutes.devices,       Color(0xFF5E35B1)),
+    _RepMod(Icons.warning_amber_rounded,        'Alertas',      AppRoutes.alerts,        Color(0xFFE53935)),
+    _RepMod(Icons.forum_rounded,                'Comunicación', AppRoutes.communication, Color(0xFF0288D1)),
+    _RepMod(Icons.psychology_rounded,           'IA Hub',       AppRoutes.iaModule,      Color(0xFF7B1FA2)),
+    _RepMod(Icons.assessment_rounded,           'Reportes',     AppRoutes.reportes,      Color(0xFF2E7D32)),
+    _RepMod(Icons.admin_panel_settings_rounded, 'Admin',        AppRoutes.admin,         Color(0xFFAD1457)),
+    ];
+    return Drawer(
+    child: Column(children: [
+        Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(20, 50, 20, 24),
+        decoration: const BoxDecoration(gradient: LinearGradient(
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+            colors: [Color(0xFF1A5DC8), Color(0xFF0D1B2A)])),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(width: 48, height: 48,
+            decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(14)),
+            child: const Icon(Icons.shield_rounded, color: Colors.white, size: 28)),
+            const SizedBox(height: 14),
+            const Text('Sentinel SVI', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+            const Text('Sistema de Vigilancia Integral', style: TextStyle(color: Colors.white60, fontSize: 12)),
+        ]),
+        ),
+        Expanded(child: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        children: mods.map((mod) {
+            final isCurrent = mod.route == AppRoutes.reportes;
+            return ListTile(
+            leading: Container(width: 38, height: 38,
+                decoration: BoxDecoration(
+                color: isCurrent ? mod.color : mod.color.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10)),
+                child: Icon(mod.icon, color: isCurrent ? Colors.white : mod.color, size: 20)),
+            title: Text(mod.label, style: TextStyle(
+                fontSize: 14, fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
+                color: isCurrent ? _blue : _textDark)),
+            trailing: isCurrent ? Container(width: 6, height: 6,
+                decoration: BoxDecoration(color: _blue, shape: BoxShape.circle)) : null,
+            onTap: () {
+                Navigator.pop(context);
+                if (!isCurrent) Navigator.pushNamed(context, mod.route);
+            },
+            );
+        }).toList(),
+        )),
+        const Divider(height: 1),
+        ListTile(
+        leading: const Icon(Icons.logout_rounded, color: _danger),
+        title: const Text('Cerrar sesión', style: TextStyle(color: _danger, fontWeight: FontWeight.w600)),
+        onTap: () async {
+            Navigator.pop(context);
+            await SessionService.logout();
+            if (!context.mounted) return;
+            Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (_) => false);
+        },
+        ),
+        const SizedBox(height: 12),
+    ]),
     );
 }
 
@@ -162,6 +277,13 @@ Widget _buildHeader() {
 
   // ── STATS GRID ────────────────────────────────────────────────
 Widget _buildStatsGrid() {
+    final s = _reportData?['summary'];
+    final totalAlerts   = s?['total_incidents']     ?? 0;
+    final criticalAlerts = s?['critical_incidents'] ?? 0;
+    final totalDevices  = s?['total_devices']        ?? 0;
+    final activeDevices = s?['active_devices']       ?? 0;
+    final aiAccuracy    = s?['ai_accuracy_pct']      ?? 99.2;
+
     return GridView.count(
     crossAxisCount: 2,
     shrinkWrap: true,
@@ -172,9 +294,9 @@ Widget _buildStatsGrid() {
     children: [
         _statCard(
         label: 'INCIDENTES',
-        value: '142',
-        sub: '↑+12% vs ayer',
-        subColor: _danger,
+        value: _loadingReport ? '...' : '$totalAlerts',
+        sub: criticalAlerts > 0 ? '↑$criticalAlerts críticas' : 'Sin críticas',
+        subColor: criticalAlerts > 0 ? _danger : _success,
         icon: Icons.warning_amber_rounded,
         iconColor: _danger,
         ),
@@ -188,15 +310,15 @@ Widget _buildStatsGrid() {
         ),
         _statCard(
         label: 'DISPOSITIVOS',
-        value: '48/50',
-        sub: '98% Activos',
+        value: _loadingReport ? '...' : '$activeDevices/$totalDevices',
+        sub: totalDevices > 0 ? '${(activeDevices / totalDevices * 100).round()}% Activos' : '0% Activos',
         subColor: _textGray,
         icon: Icons.videocam_rounded,
         iconColor: _blue,
         ),
         _statCard(
         label: 'IA ACCURACY',
-        value: '99.2%',
+        value: '$aiAccuracy%',
         sub: 'Optimizado',
         subColor: _success,
         icon: Icons.psychology_rounded,
@@ -348,7 +470,7 @@ Widget _buildHeatmap() {
             child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: List.generate(_heatmap[row].length, (col) {
-                fnal v = _heatmap[row][col];
+                final v = _heatmap[row][col];
                 return Container(
                     width: 30, height: 24,
                     decoration: BoxDecoration(
@@ -407,7 +529,7 @@ Widget _heatLegend() {
 }
 
   // ── ZONAS CRÍTICAS ────────────────────────────────────────────
-Widget _buildZonasAnálisis() {
+Widget _buildZonasAnalisis() {
     return Container(
     padding: const EdgeInsets.all(16),
     decoration: _cardDecoration(),
@@ -576,43 +698,61 @@ Widget _chartCard({required String title, required Widget child, Widget? trailin
 
   // ── BOTTOM NAV ────────────────────────────────────────────────
 Widget _buildBottomNav() {
-    final items = [
-    {'icon': Icons.grid_view_rounded,          'label': 'Dashboard'},
-    {'icon': Icons.map_rounded,                'label': 'Map'},
-    {'icon': Icons.videocam_rounded,           'label': 'Devices'},
-    {'icon': Icons.psychology_rounded,         'label': 'AI Hub'},
-    {'icon': Icons.admin_panel_settings_rounded,'label': 'Admin'},
+    const navItems = [
+    _NavEntry(Icons.dashboard_rounded,            'Dashboard', AppRoutes.dashboard),
+    _NavEntry(Icons.map_rounded,                  'Mapa',      AppRoutes.map),
+    _NavEntry(Icons.assessment_rounded,           'Reportes',  AppRoutes.reportes),
+    _NavEntry(Icons.psychology_rounded,           'IA Hub',    AppRoutes.iaModule),
+    _NavEntry(Icons.admin_panel_settings_rounded, 'Admin',     AppRoutes.admin),
     ];
     return Container(
-    padding: const EdgeInsets.symmetric(vertical: 10),
     decoration: BoxDecoration(
         color: _card,
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.07), blurRadius: 10, offset: const Offset(0, -2))],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 20, offset: const Offset(0, -4))],
     ),
-    child: Row(
+    child: SafeArea(child: SizedBox(height: 64,
+        child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: List.generate(items.length, (i) {
-        final selected = i == _selectedNav;
-        return GestureDetector(
-            onTap: () => setState(() => _selectedNav = i),
+        children: List.generate(navItems.length, (i) {
+            final selected = i == 2; // Reportes = índice 2
+            final entry = navItems[i];
+            return GestureDetector(
+            onTap: () {
+                if (selected) return;
+                Navigator.pushNamed(context, entry.route);
+            },
             child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-                Icon(items[i]['icon'] as IconData,
-                    color: selected ? _blue : _textGray, size: 24),
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                Icon(entry.icon, color: selected ? _blue : _textGray, size: 24),
                 const SizedBox(height: 4),
-                Text(items[i]['label'] as String,
-                    style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                        color: selected ? _blue : _textGray)),
-            ],
+                Text(entry.label, style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                    color: selected ? _blue : _textGray)),
+                ],
             ),
-        );
+            );
         }),
-    ),
+        ),
+    )),
     );
 }
+}
+
+class _NavEntry {
+  final IconData icon;
+  final String label;
+  final String route;
+  const _NavEntry(this.icon, this.label, this.route);
+}
+
+class _RepMod {
+  final IconData icon;
+  final String label;
+  final String route;
+  final Color color;
+  const _RepMod(this.icon, this.label, this.route, this.color);
 }
 
 // ── LINE CHART PAINTER ────────────────────────────────────────────

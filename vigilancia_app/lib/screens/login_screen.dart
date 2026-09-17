@@ -1,4 +1,6 @@
+import 'dart:async'; // Para TimeoutException
 import 'dart:convert';
+import 'dart:io'; // Para SocketException
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../main.dart'; // SessionService y AppRoutes
@@ -39,60 +41,192 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final response = await http.post(
-        Uri.parse('http://10.0.2.2:8000/api/login'), // emulador Android
-        // Uri.parse('http://192.168.X.X:8000/api/login'), // dispositivo físico
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email':    _emailController.text.trim(),
-          'password': _passwordController.text,
-        }),
-      );
+final response = await http.post(
+  Uri.parse('http://127.0.0.1:8000/api/login'),
+  headers: {'Content-Type': 'application/json'},
+  body: jsonEncode({
+    'email':    _emailController.text.trim(),
+    'password': _passwordController.text,
+  }),
+).timeout(const Duration(seconds: 10)); 
 
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
-        // ✅ Guardar sesión con SharedPreferences
         await SessionService.saveSession(
           token: data['token'],
           name:  data['user']['name'],
           email: data['user']['email'],
         );
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('¡Bienvenido, ${data['user']['name']}!'),
-              backgroundColor: _primaryBlue,
-            ),
-          );
-          // ✅ Navegar al Dashboard limpiando el stack
-          Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
-        }
-
-      } else {
-        // ❌ Credenciales incorrectas (401)
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(data['error'] ?? 'Credenciales incorrectas'),
-              backgroundColor: Colors.redAccent,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No se pudo conectar con el servidor'),
+          SnackBar(
+            content: Text('¡Bienvenido, ${data['user']['name']}!'),
+            backgroundColor: _primaryBlue,
+          ),
+        );
+        if (!mounted) return;
+        Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(data['error'] ?? data['message'] ?? 'Credenciales incorrectas'),
             backgroundColor: Colors.redAccent,
           ),
         );
       }
+    } on SocketException {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sin conexión. Verifica tu red o el servidor.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } on TimeoutException {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tiempo de espera agotado. Intenta de nuevo.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Error inesperado al conectar con el servidor.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  // ── RECUPERAR CONTRASEÑA ──────────────────────────────────────
+  Future<void> _showForgotPasswordDialog() async {
+    final emailCtrl = TextEditingController();
+    return showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          bool loading = false;
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Text(
+              'Recuperar contraseña',
+              style: TextStyle(fontWeight: FontWeight.w700, color: _textColor),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Ingresa tu correo electrónico y te enviaremos un enlace para restablecer tu contraseña.',
+                  style: TextStyle(fontSize: 13, color: _labelColor),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: emailCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(
+                    hintText: 'nombre@ejemplo.com',
+                    hintStyle: const TextStyle(color: _hintColor),
+                    filled: true,
+                    fillColor: _lightBlue,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: _borderColor),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: _primaryBlue, width: 1.5),
+                    ),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  ),
+                ),
+                if (loading) const SizedBox(height: 16),
+                if (loading)
+                  const CircularProgressIndicator(color: _primaryBlue),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: loading ? null : () => Navigator.pop(ctx),
+                child: const Text('Cancelar',
+                    style: TextStyle(color: _labelColor)),
+              ),
+              ElevatedButton(
+                onPressed: loading
+                    ? null
+                    : () async {
+                        final email = emailCtrl.text.trim();
+                        if (email.isEmpty ||
+                            !RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(email)) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Ingresa un correo válido'),
+                              backgroundColor: Colors.redAccent,
+                            ),
+                          );
+                          return;
+                        }
+                        setDialogState(() => loading = true);
+                        try {
+                          final res = await http.post(
+                            Uri.parse('http://127.0.0.1:8000/api/forgot-password'),
+                            headers: {'Content-Type': 'application/json'},
+                            body: jsonEncode({'email': email}),
+                          ).timeout(const Duration(seconds: 10));
+
+                          final data = jsonDecode(res.body);
+                          if (res.statusCode == 200) {
+                            Navigator.pop(ctx);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  data['message'] ?? 'Correo enviado. Revisa tu bandeja de entrada.',
+                                ),
+                                backgroundColor: _primaryBlue,
+                              ),
+                            );
+                          } else {
+                            setDialogState(() => loading = false);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  data['message'] ?? data['error'] ?? 'Error al enviar el correo',
+                                ),
+                                backgroundColor: Colors.redAccent,
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          setDialogState(() => loading = false);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('No se pudo conectar con el servidor.'),
+                              backgroundColor: Colors.redAccent,
+                            ),
+                          );
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _primaryBlue,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: const Text('Enviar', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   // ── BUILD ─────────────────────────────────────────────────────
@@ -188,7 +322,7 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 _buildLabel('CONTRASEÑA'),
                 GestureDetector(
-                  onTap: () {}, // TODO: recuperar contraseña
+                  onTap: _showForgotPasswordDialog,  // ← Ahora ejecuta la función
                   child: const Text('¿Olvidó su contraseña?',
                       style: TextStyle(fontSize: 12, color: _primaryBlue,
                           fontWeight: FontWeight.w500)),

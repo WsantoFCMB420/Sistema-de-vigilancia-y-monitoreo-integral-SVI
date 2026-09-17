@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import '../main.dart'; // AppRoutes
+import '../main.dart'; // AppRoutes y SessionService
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -55,30 +55,43 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final response = await http.post(
-        Uri.parse('http://10.0.2.2:8000/api/register'), // emulador Android
-        // Uri.parse('http://192.168.X.X:8000/api/register'), // dispositivo físico
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'name':         _nameController.text.trim(),
-          'email':        _emailController.text.trim(),
-          'password':     _passwordController.text,
-          'accept_terms': true,
-        }),
-      );
+    final response = await http.post(
+      Uri.parse('http://127.0.0.1:8000/api/register'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'name': _nameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'password': _passwordController.text,
+        'accept_terms': true,
+      }),
+    ).timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('¡Cuenta creada! Ahora inicia sesión'),
-              backgroundColor: Color(0xFF16A34A),
-            ),
-          );
-          // ✅ Regresar al Login usando rutas nombradas
-          Navigator.pushReplacementNamed(context, AppRoutes.login);
+          if (data.containsKey('token') && data.containsKey('user')) {
+            await SessionService.saveSession(
+              token: data['token'],
+              name:  data['user']['name'],
+              email: data['user']['email'],
+            );
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('¡Bienvenido, ${data['user']['name']}!'),
+                backgroundColor: const Color(0xFF16A34A),
+              ),
+            );
+            Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('¡Cuenta creada! Ahora inicia sesión'),
+                backgroundColor: Color(0xFF16A34A),
+              ),
+            );
+            Navigator.pushReplacementNamed(context, AppRoutes.login);
+          }
         }
       } else {
         // Error del servidor (email duplicado, validación, etc.)

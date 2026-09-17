@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
 
 class AlertsScreen extends StatefulWidget {
   const AlertsScreen({super.key});
-
   @override
   State<AlertsScreen> createState() => _AlertsScreenState();
 }
@@ -17,26 +17,27 @@ class _AlertsScreenState extends State<AlertsScreen> {
   static const Color _cardColor = Colors.white;
 
   // Estado del formulario
-  int _selectedType = 0; // 0=Seguridad, 1=Incendio, 2=Médico, 3=Técnico
-  int _selectedPriority = 2; // 0=Baja, 1=Media, 2=Crítica
+  int _selectedType = 0;
+  int _selectedPriority = 2;
   final TextEditingController _descCtrl = TextEditingController();
 
   final List<_IncidentType> _types = [
-    _IncidentType('Seguridad', Icons.shield_rounded, Color(0xFF1A5DC8)),
-    _IncidentType(
-      'Incendio',
-      Icons.local_fire_department_rounded,
-      Color(0xFFFF6D00),
-    ),
-    _IncidentType('Médico', Icons.medical_services_rounded, Color(0xFF43A047)),
-    _IncidentType('Técnico', Icons.engineering_rounded, Color(0xFF7B1FA2)),
+    _IncidentType('Seguridad', Icons.shield_rounded, const Color(0xFF1A5DC8)),
+    _IncidentType('Incendio', Icons.local_fire_department_rounded, const Color(0xFFFF6D00)),
+    _IncidentType('Médico', Icons.medical_services_rounded, const Color(0xFF43A047)),
+    _IncidentType('Técnico', Icons.engineering_rounded, const Color(0xFF7B1FA2)),
   ];
 
   final List<_Priority> _priorities = [
-    _Priority('Baja', Color(0xFF43A047)),
-    _Priority('Media', Color(0xFFFFA000)),
-    _Priority('Crítica', Color(0xFFE53935)),
+    _Priority('Baja', const Color(0xFF43A047)),
+    _Priority('Media', const Color(0xFFFFA000)),
+    _Priority('Crítica', const Color(0xFFE53935)),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+  }
 
   @override
   void dispose() {
@@ -89,7 +90,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
     );
   }
 
-  // ── AppBar con X ──────────────────────────────────────────────────────────
+  // ── AppBar ──────────────────────────────────────────────────────────────
   Widget _buildAppBar() {
     return Container(
       color: _cardColor,
@@ -97,27 +98,19 @@ class _AlertsScreenState extends State<AlertsScreen> {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.close_rounded, color: _textColor, size: 22),
-            onPressed: () => Navigator.maybePop(context),
+            icon: const Icon(Icons.arrow_back_rounded, color: _textColor, size: 22),
+            onPressed: () => Navigator.pop(context),
           ),
           const Expanded(
             child: Text(
               'Emitir Alerta',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-                color: _textColor,
-              ),
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _textColor),
             ),
           ),
           CircleAvatar(
             radius: 18,
             backgroundColor: _primaryBlue.withOpacity(0.15),
-            child: const Icon(
-              Icons.person_rounded,
-              color: _primaryBlue,
-              size: 20,
-            ),
+            child: const Icon(Icons.person_rounded, color: _primaryBlue, size: 20),
           ),
           const SizedBox(width: 8),
         ],
@@ -134,11 +127,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
         color: _cardColor,
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 3)),
         ],
       ),
       child: Column(
@@ -146,21 +135,12 @@ class _AlertsScreenState extends State<AlertsScreen> {
         children: [
           const Text(
             'MÓDULO DE RESPUESTA RÁPIDA',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: _primaryBlue,
-              letterSpacing: 0.8,
-            ),
+            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _primaryBlue, letterSpacing: 0.8),
           ),
           const SizedBox(height: 6),
           const Text(
             'Configuración de Alerta',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: _textColor,
-            ),
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _textColor),
           ),
           const SizedBox(height: 6),
           const Text(
@@ -172,17 +152,8 @@ class _AlertsScreenState extends State<AlertsScreen> {
     );
   }
 
-  // ── Etiqueta de sección ───────────────────────────────────────────────────
   Widget _buildSection(String label) {
-    return Text(
-      label,
-      style: const TextStyle(
-        fontSize: 11,
-        fontWeight: FontWeight.w700,
-        color: _labelColor,
-        letterSpacing: 0.8,
-      ),
-    );
+    return Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _labelColor, letterSpacing: 0.8));
   }
 
   // ── Grid de tipos de incidente ────────────────────────────────────────────
@@ -213,25 +184,14 @@ class _AlertsScreenState extends State<AlertsScreen> {
                 width: selected ? 2 : 1,
               ),
               boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
+                BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2)),
               ],
             ),
             child: Row(
               children: [
                 Icon(t.icon, color: selected ? t.color : _labelColor, size: 22),
                 const SizedBox(width: 10),
-                Text(
-                  t.label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: selected ? t.color : _textColor,
-                  ),
-                ),
+                Text(t.label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: selected ? t.color : _textColor)),
               ],
             ),
           ),
@@ -246,13 +206,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
       ),
       child: Row(
         children: _priorities.asMap().entries.map((entry) {
@@ -261,7 +215,6 @@ class _AlertsScreenState extends State<AlertsScreen> {
           final selected = _selectedPriority == i;
           final isFirst = i == 0;
           final isLast = i == _priorities.length - 1;
-
           return Expanded(
             child: GestureDetector(
               onTap: () => setState(() => _selectedPriority = i),
@@ -278,11 +231,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
                 child: Center(
                   child: Text(
                     p.label,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: selected ? Colors.white : _labelColor,
-                    ),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: selected ? Colors.white : _labelColor),
                   ),
                 ),
               ),
@@ -304,17 +253,12 @@ class _AlertsScreenState extends State<AlertsScreen> {
             height: 160,
             child: Stack(
               children: [
-                // Fondo del mapa (oscuro, estilo satelital)
                 Container(
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [
-                        Color(0xFF0A1628),
-                        Color(0xFF0D2040),
-                        Color(0xFF0A1628),
-                      ],
+                      colors: [Color(0xFF0A1628), Color(0xFF0D2040), Color(0xFF0A1628)],
                     ),
                   ),
                   child: CustomPaint(
@@ -322,29 +266,16 @@ class _AlertsScreenState extends State<AlertsScreen> {
                     painter: _MapGridPainter(),
                   ),
                 ),
-                // Marcador de ubicación
                 const Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        Icons.location_on_rounded,
-                        color: Color(0xFFE53935),
-                        size: 36,
-                      ),
+                      Icon(Icons.location_on_rounded, color: Color(0xFFE53935), size: 36),
                       SizedBox(height: 2),
-                      Text(
-                        'Punto de incidente',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                      Text('Punto de incidente', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.w500)),
                     ],
                   ),
                 ),
-                // Controles del mapa
                 Positioned(
                   right: 10,
                   bottom: 10,
@@ -363,18 +294,9 @@ class _AlertsScreenState extends State<AlertsScreen> {
         const SizedBox(height: 8),
         Row(
           children: [
-            const Icon(
-              Icons.info_outline_rounded,
-              size: 14,
-              color: _labelColor,
-            ),
+            const Icon(Icons.info_outline_rounded, size: 14, color: _labelColor),
             const SizedBox(width: 6),
-            const Expanded(
-              child: Text(
-                'Arrastre el marcador para fijar la ubicación exacta.',
-                style: TextStyle(fontSize: 11, color: _labelColor),
-              ),
-            ),
+            const Expanded(child: Text('Arrastre el marcador para fijar la ubicación exacta.', style: TextStyle(fontSize: 11, color: _labelColor))),
           ],
         ),
       ],
@@ -385,10 +307,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
     return Container(
       width: 30,
       height: 30,
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.85),
-        borderRadius: BorderRadius.circular(8),
-      ),
+      decoration: BoxDecoration(color: Colors.white.withOpacity(0.85), borderRadius: BorderRadius.circular(8)),
       child: Icon(icon, size: 18, color: _textColor),
     );
   }
@@ -400,21 +319,14 @@ class _AlertsScreenState extends State<AlertsScreen> {
         color: _cardColor,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFFE0E8F5)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
       ),
       child: TextField(
         controller: _descCtrl,
         maxLines: 4,
         style: const TextStyle(fontSize: 13, color: _textColor),
         decoration: const InputDecoration(
-          hintText:
-              'Detalle los hechos observados y el estado actual del sitio...',
+          hintText: 'Detalle los hechos observados y el estado actual del sitio...',
           hintStyle: TextStyle(fontSize: 13, color: _labelColor),
           border: InputBorder.none,
           contentPadding: EdgeInsets.all(14),
@@ -435,32 +347,17 @@ class _AlertsScreenState extends State<AlertsScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
-            Icons.warning_amber_rounded,
-            color: _dangerColor,
-            size: 20,
-          ),
+          const Icon(Icons.warning_amber_rounded, color: _dangerColor, size: 20),
           const SizedBox(width: 10),
           const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Acción de Alta Prioridad',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: _dangerColor,
-                  ),
-                ),
+                Text('Acción de Alta Prioridad', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _dangerColor)),
                 SizedBox(height: 4),
                 Text(
                   'Esta alerta notificará instantáneamente a la central de vigilancia y registrará su ID de operador como responsable de la emisión.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: _textColor,
-                    height: 1.5,
-                  ),
+                  style: TextStyle(fontSize: 12, color: _textColor, height: 1.5),
                 ),
               ],
             ),
@@ -477,81 +374,64 @@ class _AlertsScreenState extends State<AlertsScreen> {
       decoration: BoxDecoration(
         color: _cardColor,
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 10,
-            offset: const Offset(0, -3),
-          ),
+          BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 10, offset: const Offset(0, -3)),
         ],
       ),
       child: ElevatedButton.icon(
         onPressed: _emitAlert,
         icon: const Icon(Icons.campaign_rounded, size: 20),
-        label: const Text(
-          'Emitir alerta',
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.3,
-          ),
-        ),
+        label: const Text('Emitir alerta', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: 0.3)),
         style: ElevatedButton.styleFrom(
           backgroundColor: _dangerColor,
           foregroundColor: Colors.white,
           elevation: 4,
           shadowColor: _dangerColor.withOpacity(0.4),
           minimumSize: const Size(double.infinity, 52),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(30),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
         ),
       ),
     );
   }
 
-  void _emitAlert() {
+  void _emitAlert() async {
     final type = _types[_selectedType].label;
     final priority = _priorities[_selectedPriority].label;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(
-              Icons.check_circle_rounded,
-              color: Color(0xFF43A047),
-              size: 24,
-            ),
-            const SizedBox(width: 8),
-            const Text(
-              'Alerta emitida',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: _textColor,
-              ),
+    final desc = _descCtrl.text.trim();
+    try {
+      await ApiService.sendAlert(
+        type: type,
+        priority: priority,
+        location: 'Punto de incidente',
+        description: desc,
+      );
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded, color: Color(0xFF43A047), size: 24),
+              const SizedBox(width: 8),
+              const Text('Alerta emitida', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _textColor)),
+            ],
+          ),
+          content: Text('Alerta de tipo "$type" con prioridad "$priority" enviada.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Aceptar'),
             ),
           ],
         ),
-        content: Text(
-          'Alerta de tipo "$type" con prioridad "$priority" enviada a los equipos de respuesta.',
-          style: const TextStyle(fontSize: 13, color: _labelColor, height: 1.5),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text(
-              'Aceptar',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                color: _primaryBlue,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+      );
+      _descCtrl.clear();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error al emitir alerta'), backgroundColor: Colors.redAccent),
+      );
+    }
   }
 }
 

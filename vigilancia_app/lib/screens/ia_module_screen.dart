@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import '../main.dart'; // AppRoutes
 
 class IAModuleScreen extends StatefulWidget {
 const IAModuleScreen({super.key});
@@ -146,6 +147,18 @@ Widget _buildTopBar() {
     color: _cardBg,
     child: Row(
         children: [
+        GestureDetector(
+            onTap: () => Navigator.maybePop(context),
+            child: Container(
+            width: 36, height: 36,
+            decoration: BoxDecoration(
+                color: _primaryBlue.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(Icons.arrow_back_rounded, color: _primaryBlue, size: 20),
+            ),
+        ),
+        const SizedBox(width: 10),
         Container(
             width: 32,
             height: 32,
@@ -155,9 +168,9 @@ Widget _buildTopBar() {
             ),
             child: const Icon(Icons.shield_rounded, color: Colors.white, size: 18),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 8),
         const Text(
-            'Sentinel Surveillance',
+            'IA Hub',
             style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w700,
@@ -669,12 +682,12 @@ Widget _buildActionButtons() {
 
   // ── BOTTOM NAV ────────────────────────────────────────────────
 Widget _buildBottomNav() {
-    final items = [
-    {'icon': Icons.grid_view_rounded, 'label': 'Dashboard'},
-    {'icon': Icons.map_rounded, 'label': 'Map'},
-    {'icon': Icons.videocam_rounded, 'label': 'Devices'},
-    {'icon': Icons.psychology_rounded, 'label': 'AI Hub'},
-    {'icon': Icons.admin_panel_settings_rounded, 'label': 'Admin'},
+    const navItems = [
+    _NavEntry(Icons.grid_view_rounded, 'Dashboard', AppRoutes.dashboard),
+    _NavEntry(Icons.map_rounded, 'Mapa', AppRoutes.map),
+    _NavEntry(Icons.videocam_rounded, 'Cámaras', AppRoutes.cameraView),
+    _NavEntry(Icons.psychology_rounded, 'IA Hub', AppRoutes.iaModule),
+    _NavEntry(Icons.admin_panel_settings_rounded, 'Admin', AppRoutes.admin),
     ];
 
     return Container(
@@ -687,10 +700,15 @@ Widget _buildBottomNav() {
     ),
     child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: List.generate(items.length, (i) {
+        children: List.generate(navItems.length, (i) {
         final selected = i == _selectedNav;
+        final entry = navItems[i];
         return GestureDetector(
-            onTap: () => setState(() => _selectedNav = i),
+            onTap: () {
+            if (i == _selectedNav) return;
+            setState(() => _selectedNav = i);
+            Navigator.pushNamed(context, entry.route);
+            },
             child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -698,11 +716,11 @@ Widget _buildBottomNav() {
                 clipBehavior: Clip.none,
                 children: [
                     Icon(
-                    items[i]['icon'] as IconData,
+                    entry.icon,
                     color: selected ? _primaryBlue : _textGray,
                     size: 24,
                     ),
-                    if (i == 3) // Badge en AI Hub
+                    if (i == 3)
                     Positioned(
                         top: -4,
                         right: -6,
@@ -723,7 +741,7 @@ Widget _buildBottomNav() {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                items[i]['label'] as String,
+                entry.label,
                 style: TextStyle(
                     fontSize: 10,
                     fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
@@ -737,4 +755,11 @@ Widget _buildBottomNav() {
     ),
     );
 }
+}
+
+class _NavEntry {
+  final IconData icon;
+  final String label;
+  final String route;
+  const _NavEntry(this.icon, this.label, this.route);
 }

@@ -13,6 +13,7 @@ import 'screens/communication_screen.dart';
 import 'screens/ia_module_screen.dart';
 import 'screens/reportes_screen.dart';
 import 'screens/admin_panel_screen.dart';
+import 'screens/profile_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -49,6 +50,12 @@ class SessionService {
   static Future<String> getUserName() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_userNameKey) ?? 'Usuario';
+  }
+
+  /// Recupera email del usuario
+  static Future<String> getUserEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_userEmailKey) ?? 'correo@ejemplo.com';
   }
 
   /// Cierra sesión y limpia el almacenamiento
@@ -103,6 +110,7 @@ class AppRoutes {
   static const String iaModule      = '/ia-module';
   static const String reportes      = '/reportes';
   static const String admin         = '/admin';
+  static const String profile       = '/profile';
 
   static Map<String, WidgetBuilder> get routes => {
     login:         (_) => const LoginScreen(),
@@ -116,6 +124,7 @@ class AppRoutes {
     iaModule:      (_) => const AuthGuard(child: IAModuleScreen()),
     reportes:      (_) => const AuthGuard(child: ReportesScreen()),
     admin:         (_) => const AuthGuard(child: AdminPanelScreen()),
+    profile:       (_) => const AuthGuard(child: ProfileScreen()),
   };
 }
 
