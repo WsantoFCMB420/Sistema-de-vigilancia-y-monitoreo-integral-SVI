@@ -54,9 +54,11 @@ final response = await http.post(
 
       if (response.statusCode == 200) {
         await SessionService.saveSession(
-          token: data['token'],
-          name:  data['user']['name'],
-          email: data['user']['email'],
+          token:  data['token'],
+          name:   data['user']['name'],
+          email:  data['user']['email'],
+          role:   data['user']['role'] ?? 'viewer',
+          userId: data['user']['id'] ?? 0,
         );
 
         if (!mounted) return;

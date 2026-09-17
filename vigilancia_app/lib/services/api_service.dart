@@ -244,4 +244,90 @@ class ApiService {
       // Si falla la red, igualmente limpiamos local
     }
   }
+
+  // ── Perfil del usuario autenticado ───────────────────────────
+  static Future<Map<String, dynamic>> getProfile() async {
+    final token = await getToken();
+    if (token == null) throw Exception('No hay sesión activa');
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/profile'),
+      headers: _authHeaders(token),
+    ).timeout(const Duration(seconds: 10));
+
+    if (response.statusCode == 200) return jsonDecode(response.body);
+    if (response.statusCode == 401) throw Exception('Sesión expirada');
+    throw _handleError(response, 'Error al cargar perfil');
+  }
+
+  static Future<Map<String, dynamic>> updateProfile({
+    String? name,
+    String? phone,
+    String? avatar,
+    String? password,
+    String? passwordConfirmation,
+  }) async {
+    final token = await getToken();
+    if (token == null) throw Exception('No hay sesión activa');
+
+    final body = <String, dynamic>{};
+    if (name != null)                 body['name']                  = name;
+    if (phone != null)                body['phone']                 = phone;
+    if (avatar != null)               body['avatar']                = avatar;
+    if (password != null)             body['password']              = password;
+    if (passwordConfirmation != null) body['password_confirmation'] = passwordConfirmation;
+
+    final response = await http.put(
+      Uri.parse('$baseUrl/profile'),
+      headers: _authHeaders(token),
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 10));
+
+    if (response.statusCode == 200) return jsonDecode(response.body);
+    throw _handleError(response, 'Error al actualizar perfil');
+  }
+
+  // ── Gestión de usuarios (solo Admin) ─────────────────────────
+  static Future<List<dynamic>> getUsers() async {
+    final token = await getToken();
+    if (token == null) throw Exception('No hay sesión activa');
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/admin/users'),
+      headers: _authHeaders(token),
+    ).timeout(const Duration(seconds: 10));
+
+    if (response.statusCode == 200) return jsonDecode(response.body);
+    if (response.statusCode == 401) throw Exception('Sesión expirada');
+    if (response.statusCode == 403) throw Exception('Sin permisos de administrador');
+    throw _handleError(response, 'Error al cargar usuarios');
+  }
+
+  static Future<Map<String, dynamic>> updateUserRole(int userId, String role) async {
+    final token = await getToken();
+    if (token == null) throw Exception('No hay sesión activa');
+
+    final response = await http.put(
+      Uri.parse('$baseUrl/admin/users/$userId/role'),
+      headers: _authHeaders(token),
+      body: jsonEncode({'role': role}),
+    ).timeout(const Duration(seconds: 10));
+
+    if (response.statusCode == 200) return jsonDecode(response.body);
+    throw _handleError(response, 'Error al actualizar rol');
+  }
+
+  static Future<void> deleteUser(int userId) async {
+    final token = await getToken();
+    if (token == null) throw Exception('No hay sesión activa');
+
+    final response = await http.delete(
+      Uri.parse('$baseUrl/admin/users/$userId'),
+      headers: _authHeaders(token),
+    ).timeout(const Duration(seconds: 10));
+
+    if (response.statusCode != 200) {
+      throw _handleError(response, 'Error al eliminar usuario');
+    }
+  }
 }

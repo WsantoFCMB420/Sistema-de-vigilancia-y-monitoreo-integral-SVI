@@ -24,20 +24,26 @@ void main() async {
 
 // ── Servicio de sesión (disponible globalmente) ───────────────────
 class SessionService {
-  static const _tokenKey = 'auth_token';
-  static const _userNameKey = 'user_name';
+  static const _tokenKey     = 'auth_token';
+  static const _userNameKey  = 'user_name';
   static const _userEmailKey = 'user_email';
+  static const _userRoleKey  = 'user_role';
+  static const _userIdKey    = 'user_id';
 
   /// Guarda el token y datos del usuario tras login exitoso
   static Future<void> saveSession({
     required String token,
     required String name,
     required String email,
+    required String role,
+    required int    userId,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_tokenKey, token);
     await prefs.setString(_userNameKey, name);
     await prefs.setString(_userEmailKey, email);
+    await prefs.setString(_userRoleKey, role);
+    await prefs.setInt(_userIdKey, userId);
   }
 
   /// Recupera el token almacenado
@@ -56,6 +62,29 @@ class SessionService {
   static Future<String> getUserEmail() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_userEmailKey) ?? 'correo@ejemplo.com';
+  }
+
+  /// Recupera rol del usuario
+  static Future<String> getUserRole() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_userRoleKey) ?? 'viewer';
+  }
+
+  /// Recupera ID del usuario
+  static Future<int> getUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_userIdKey) ?? 0;
+  }
+
+  /// Verifica si el usuario es admin
+  static Future<bool> isAdmin() async {
+    return (await getUserRole()) == 'admin';
+  }
+
+  /// Verifica si el usuario es operador o admin
+  static Future<bool> canOperate() async {
+    final role = await getUserRole();
+    return role == 'admin' || role == 'operator';
   }
 
   /// Cierra sesión y limpia el almacenamiento

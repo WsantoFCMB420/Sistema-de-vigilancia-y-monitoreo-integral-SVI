@@ -9,5 +9,12 @@ class Device extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['title', 'subtitle', 'status', 'imageUrl'];
+    protected $fillable = [
+        'title',
+        'subtitle',
+        'status',
+        'imageUrl',
+        'latitude',
+        'longitude',
+    ];
 }
