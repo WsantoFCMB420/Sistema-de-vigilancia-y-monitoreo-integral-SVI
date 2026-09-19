@@ -160,7 +160,7 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
               onTap: () => Navigator.maybePop(context),
               child: Container(
                 width: 36, height: 36,
-                decoration: BoxDecoration(color: _primaryBlue.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
+                decoration: BoxDecoration(color: _primaryBlue.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
                 child: Icon(Icons.arrow_back_rounded, color: _primaryBlue, size: 20),
               ),
             ),
@@ -177,7 +177,7 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
         ),
         CircleAvatar(
           radius: 18,
-          backgroundColor: _primaryBlue.withOpacity(0.15),
+          backgroundColor: _primaryBlue.withValues(alpha: 0.15),
           child: const Icon(Icons.person_rounded, color: _primaryBlue, size: 20),
         ),
       ],
@@ -193,14 +193,14 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
         color: _cardColor,
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 3)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 3)),
         ],
       ),
       child: Row(
         children: [
           Container(
             width: 44, height: 44,
-            decoration: BoxDecoration(color: _primaryBlue.withOpacity(0.12), shape: BoxShape.circle),
+            decoration: BoxDecoration(color: _primaryBlue.withValues(alpha: 0.12), shape: BoxShape.circle),
             child: const Icon(Icons.groups_rounded, color: _primaryBlue, size: 24),
           ),
           const SizedBox(width: 12),
@@ -242,7 +242,7 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
-                color: const Color(0xFFBDCCE8).withOpacity(0.4),
+                color: const Color(0xFFBDCCE8).withValues(alpha: 0.4),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(label, style: const TextStyle(fontSize: 11, color: _labelColor, fontWeight: FontWeight.w500)),
@@ -270,7 +270,7 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
         children: [
           CircleAvatar(
             radius: 16,
-            backgroundColor: _primaryBlue.withOpacity(0.15),
+            backgroundColor: _primaryBlue.withValues(alpha: 0.15),
             child: Text(
               msg.sender.isNotEmpty ? msg.sender[0] : '?',
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _primaryBlue),
@@ -296,7 +296,7 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
                       bottomRight: Radius.circular(16),
                     ),
                     boxShadow: [
-                      BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 6, offset: const Offset(0, 2)),
+                      BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 6, offset: const Offset(0, 2)),
                     ],
                   ),
                   child: Text(msg.text, style: const TextStyle(fontSize: 13, color: _textColor, height: 1.4)),
@@ -338,7 +338,7 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
                       bottomRight: Radius.circular(16),
                     ),
                     boxShadow: [
-                      BoxShadow(color: _primaryBlue.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 3)),
+                      BoxShadow(color: _primaryBlue.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3)),
                     ],
                   ),
                   child: Text(msg.text, style: const TextStyle(fontSize: 13, color: Colors.white, height: 1.4)),
@@ -370,9 +370,9 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFFFDECEC),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _dangerColor.withOpacity(0.4), width: 1),
+        border: Border.all(color: _dangerColor.withValues(alpha: 0.4), width: 1),
         boxShadow: [
-          BoxShadow(color: _dangerColor.withOpacity(0.08), blurRadius: 10, offset: const Offset(0, 3)),
+          BoxShadow(color: _dangerColor.withValues(alpha: 0.08), blurRadius: 10, offset: const Offset(0, 3)),
         ],
       ),
       child: Column(
@@ -435,7 +435,7 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
       decoration: BoxDecoration(
         color: _cardColor,
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 10, offset: const Offset(0, -3)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 10, offset: const Offset(0, -3)),
         ],
       ),
       child: Row(
@@ -504,7 +504,7 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 20, offset: const Offset(0, -4)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 20, offset: const Offset(0, -4)),
         ],
       ),
       child: SafeArea(

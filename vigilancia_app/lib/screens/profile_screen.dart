@@ -137,7 +137,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onTap: () => Navigator.maybePop(context),
             child: Container(
               width: 36, height: 36,
-              decoration: BoxDecoration(color: _blue.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: _blue.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
               child: Icon(Icons.arrow_back_rounded, color: _blue, size: 20),
             ),
           ),
@@ -146,7 +146,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onTap: () => setState(() { _editing = !_editing; if (!_editing) _loadProfile(); }),
             child: Container(
               width: 36, height: 36,
-              decoration: BoxDecoration(color: _blue.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: _blue.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
               child: Icon(_editing ? Icons.close_rounded : Icons.edit_rounded, color: _blue, size: 18),
             ),
           ),
@@ -183,12 +183,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           width: double.infinity,
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(20),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 16, offset: const Offset(0, 4))]),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 16, offset: const Offset(0, 4))]),
           child: Column(children: [
             Stack(children: [
               CircleAvatar(
                 radius: 44,
-                backgroundColor: _roleColor(p['role']).withOpacity(0.15),
+                backgroundColor: _roleColor(p['role']).withValues(alpha: 0.15),
                 child: Text(_initials(p['name']),
                   style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: _roleColor(p['role']))),
               ),
@@ -205,7 +205,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
-                color: _roleColor(p['role']).withOpacity(0.1),
+                color: _roleColor(p['role']).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(20)),
               child: Text(_roleLabel(p['role']),
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _roleColor(p['role']))),
@@ -219,7 +219,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(16),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 3))]),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 3))]),
           child: Column(children: [
             _buildInfoRow(Icons.person_rounded, 'NOMBRE COMPLETO', _editing
               ? _buildEditField(_nameCtrl, 'Tu nombre')
@@ -278,7 +278,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildInfoRow(IconData icon, String label, Widget content) {
     return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Container(width: 36, height: 36,
-        decoration: BoxDecoration(color: _blue.withOpacity(0.08), borderRadius: BorderRadius.circular(9)),
+        decoration: BoxDecoration(color: _blue.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(9)),
         child: Icon(icon, color: _blue, size: 18)),
       const SizedBox(width: 14),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

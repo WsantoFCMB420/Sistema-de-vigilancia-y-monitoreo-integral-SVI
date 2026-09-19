@@ -72,9 +72,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
         if (mounted) {
           if (data.containsKey('token') && data.containsKey('user')) {
             await SessionService.saveSession(
-              token: data['token'],
-              name:  data['user']['name'],
-              email: data['user']['email'],
+              token:  data['token'],
+              name:   data['user']['name'],
+              email:  data['user']['email'],
+              role:   data['user']['role'] ?? 'viewer',
+              userId: data['user']['id'] ?? 0,
             );
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -148,7 +150,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             color: _primaryBlue,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
-              BoxShadow(color: _primaryBlue.withOpacity(0.35),
+              BoxShadow(color: _primaryBlue.withValues(alpha: 0.35),
                   blurRadius: 20, offset: const Offset(0, 8)),
             ],
           ),
@@ -171,7 +173,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         color: _cardColor,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.06),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.06),
               blurRadius: 24, offset: const Offset(0, 6)),
         ],
       ),
@@ -355,7 +357,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         style: ElevatedButton.styleFrom(
           backgroundColor: _primaryBlue,
           foregroundColor: Colors.white,
-          disabledBackgroundColor: _primaryBlue.withOpacity(0.6),
+          disabledBackgroundColor: _primaryBlue.withValues(alpha: 0.6),
           elevation: 0,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),

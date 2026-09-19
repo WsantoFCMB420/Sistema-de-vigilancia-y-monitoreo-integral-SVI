@@ -152,7 +152,7 @@ Widget _buildTopBar() {
             child: Container(
             width: 36, height: 36,
             decoration: BoxDecoration(
-                color: _primaryBlue.withOpacity(0.12),
+                color: _primaryBlue.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(Icons.arrow_back_rounded, color: _primaryBlue, size: 20),
@@ -180,7 +180,7 @@ Widget _buildTopBar() {
         const Spacer(),
         CircleAvatar(
             radius: 18,
-            backgroundColor: _primaryBlue.withOpacity(0.15),
+            backgroundColor: _primaryBlue.withValues(alpha: 0.15),
             child: const Icon(Icons.person_rounded, color: _primaryBlue, size: 20),
         ),
         ],
@@ -273,8 +273,8 @@ Widget _buildCameraFeed() {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                Colors.black.withOpacity(0.2),
-                Colors.black.withOpacity(0.6),
+                Colors.black.withValues(alpha: 0.2),
+                Colors.black.withValues(alpha: 0.6),
                 ],
             ),
             ),
@@ -317,7 +317,7 @@ Widget _buildCameraFeed() {
                 height: 110,
                 decoration: BoxDecoration(
                 border: Border.all(
-                    color: _danger.withOpacity(_alertBoxAnim.value),
+                    color: _danger.withValues(alpha: _alertBoxAnim.value),
                     width: 2,
                 ),
                 borderRadius: BorderRadius.circular(4),
@@ -328,7 +328,7 @@ Widget _buildCameraFeed() {
                     margin: const EdgeInsets.all(4),
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                    color: _danger.withOpacity(0.9),
+                    color: _danger.withValues(alpha: 0.9),
                     borderRadius: BorderRadius.circular(4),
                     ),
                     child: const Text(
@@ -377,7 +377,7 @@ Widget _buildCameraFeed() {
             child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.6),
+                color: Colors.black.withValues(alpha: 0.6),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.white24),
             ),
@@ -430,7 +430,7 @@ Widget _buildScanLine() {
             decoration: BoxDecoration(
             gradient: LinearGradient(colors: [
                 Colors.transparent,
-                _primaryBlue.withOpacity(0.8),
+                _primaryBlue.withValues(alpha: 0.8),
                 Colors.transparent,
             ]),
             ),
@@ -480,7 +480,7 @@ Widget _buildEventCard(Map<String, dynamic> e) {
         color: _cardBg,
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
-        BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2)),
+        BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2)),
         ],
     ),
     child: Row(
@@ -489,7 +489,7 @@ Widget _buildEventCard(Map<String, dynamic> e) {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-            color: (e['color'] as Color).withOpacity(0.12),
+            color: (e['color'] as Color).withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(e['icon'] as IconData, color: e['color'] as Color, size: 20),
@@ -540,7 +540,7 @@ Widget _buildNetworkCard() {
         color: _cardBg,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-        BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 12, offset: const Offset(0, 3)),
+        BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 3)),
         ],
     ),
     child: Column(
@@ -610,7 +610,7 @@ Widget _buildBarChart() {
                 width: 28,
                 height: 70 * _networkLoad[i],
                 decoration: BoxDecoration(
-                  color: isHighest ? _purple : _primaryBlue.withOpacity(0.4 + _networkLoad[i] * 0.4),
+                  color: isHighest ? _purple : _primaryBlue.withValues(alpha: 0.4 + _networkLoad[i] * 0.4),
                 borderRadius: BorderRadius.circular(6),
                 ),
             ),
@@ -668,7 +668,7 @@ Widget _buildActionButtons() {
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, height: 1.3),
             ),
             style: ElevatedButton.styleFrom(
-            backgroundColor: _alertActive ? _danger.withOpacity(0.7) : _danger,
+            backgroundColor: _alertActive ? _danger.withValues(alpha: 0.7) : _danger,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 16),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -695,7 +695,7 @@ Widget _buildBottomNav() {
     decoration: BoxDecoration(
         color: _cardBg,
         boxShadow: [
-        BoxShadow(color: Colors.black.withOpacity(0.07), blurRadius: 10, offset: const Offset(0, -2)),
+        BoxShadow(color: Colors.black.withValues(alpha: 0.07), blurRadius: 10, offset: const Offset(0, -2)),
         ],
     ),
     child: Row(

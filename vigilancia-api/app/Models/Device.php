@@ -14,7 +14,24 @@ class Device extends Model
         'subtitle',
         'status',
         'imageUrl',
+        'stream_url',
+        'ip_address',
+        'port',
+        'is_ptz',
+        'device_type',
         'latitude',
         'longitude',
     ];
+
+    protected $casts = [
+        'is_ptz' => 'boolean',
+        'port' => 'integer',
+        'latitude' => 'float',
+        'longitude' => 'float',
+    ];
+
+    public function alerts()
+    {
+        return $this->hasMany(Alert::class);
+    }
 }

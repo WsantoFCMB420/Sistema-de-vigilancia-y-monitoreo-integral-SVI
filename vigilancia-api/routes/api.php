@@ -32,18 +32,20 @@ Route::middleware('auth:sanctum')->group(function () {
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index']);
 
-    // Dispositivos — CRUD completo
-    Route::get('/devices',         [DeviceController::class, 'index']);
-    Route::post('/devices',        [DeviceController::class, 'store']);
-    Route::get('/devices/{id}',    [DeviceController::class, 'show']);
-    Route::put('/devices/{id}',    [DeviceController::class, 'update']);
-    Route::delete('/devices/{id}', [DeviceController::class, 'destroy']);
+    // Dispositivos — CRUD completo y control PTZ
+    Route::get('/devices',            [DeviceController::class, 'index']);
+    Route::post('/devices',           [DeviceController::class, 'store']);
+    Route::get('/devices/{id}',       [DeviceController::class, 'show']);
+    Route::put('/devices/{id}',       [DeviceController::class, 'update']);
+    Route::delete('/devices/{id}',    [DeviceController::class, 'destroy']);
+    Route::post('/devices/{id}/ptz',  [DeviceController::class, 'ptz']);
 
-    // Alertas
-    Route::get('/alerts',          [AlertController::class, 'index']);
-    Route::post('/alerts',         [AlertController::class, 'store']);
-    Route::put('/alerts/{id}',     [AlertController::class, 'update']);
-    Route::delete('/alerts/{id}',  [AlertController::class, 'destroy']);
+    // Alertas y ciclo de vida
+    Route::get('/alerts',             [AlertController::class, 'index']);
+    Route::post('/alerts',            [AlertController::class, 'store']);
+    Route::put('/alerts/{id}',        [AlertController::class, 'update']);
+    Route::patch('/alerts/{id}/status', [AlertController::class, 'updateStatus']);
+    Route::delete('/alerts/{id}',     [AlertController::class, 'destroy']);
 
     // Reportes
     Route::get('/reports', [ReportController::class, 'index']);

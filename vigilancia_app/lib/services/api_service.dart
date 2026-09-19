@@ -3,7 +3,13 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  static const String baseUrl = "http://127.0.0.1:8000/api";
+  // ⚠️ IMPORTANTE: Si usas un dispositivo físico, cambia 127.0.0.1 por la IP local de tu PC (ej. 192.168.1.100)
+  // Si usas el emulador de Android, usa 10.0.2.2
+    static const String baseUrl = "https://humberto.alwaysdata.net/api";
+  static const String localCameraStream = 'local://device-camera';
+
+  static bool isLocalCamera(String? streamUrl) =>
+      (streamUrl ?? '').startsWith('local://');
 
   // ── Token ─────────────────────────────────────────────────────
   static Future<String?> getToken() async {
@@ -63,23 +69,47 @@ class ApiService {
     required String priority,
     String? location,
     String? description,
+    int? deviceId,
+    String? status,
+    double? latitude,
+    double? longitude,
   }) async {
     final token = await getToken();
     if (token == null) throw Exception('No hay sesión activa');
 
+    final payload = <String, dynamic>{
+      'type':        type,
+      'priority':    priority,
+      'location':    location ?? '',
+      'description': description ?? '',
+    };
+    if (deviceId != null)  payload['device_id'] = deviceId;
+    if (status != null)    payload['status']    = status;
+    if (latitude != null)  payload['latitude']  = latitude;
+    if (longitude != null) payload['longitude'] = longitude;
+
     final response = await http.post(
       Uri.parse('$baseUrl/alerts'),
       headers: _authHeaders(token),
-      body: jsonEncode({
-        'type':        type,
-        'priority':    priority,
-        'location':    location ?? '',
-        'description': description ?? '',
-      }),
+      body: jsonEncode(payload),
     ).timeout(const Duration(seconds: 10));
 
     if (response.statusCode == 201) return jsonDecode(response.body);
     throw _handleError(response, 'Error al emitir alerta');
+  }
+
+  static Future<Map<String, dynamic>> updateAlertStatus(int id, String status) async {
+    final token = await getToken();
+    if (token == null) throw Exception('No hay sesión activa');
+
+    final response = await http.patch(
+      Uri.parse('$baseUrl/alerts/$id/status'),
+      headers: _authHeaders(token),
+      body: jsonEncode({'status': status}),
+    ).timeout(const Duration(seconds: 10));
+
+    if (response.statusCode == 200) return jsonDecode(response.body);
+    throw _handleError(response, 'Error al actualizar estado de la alerta');
   }
 
   static Future<void> deleteAlert(int id) async {
@@ -96,7 +126,7 @@ class ApiService {
     }
   }
 
-  // ── Dispositivos ──────────────────────────────────────────────
+  // ── Dispositivos y Control PTZ ────────────────────────────────
   static Future<List<dynamic>> getDevices() async {
     final token = await getToken();
     if (token == null) throw Exception('No hay sesión activa');
@@ -116,19 +146,35 @@ class ApiService {
     String? subtitle,
     String status = 'Activo',
     String? imageUrl,
+    String? streamUrl,
+    String? ipAddress,
+    int? port,
+    bool isPtz = false,
+    String deviceType = 'camera',
+    double? latitude,
+    double? longitude,
   }) async {
     final token = await getToken();
     if (token == null) throw Exception('No hay sesión activa');
 
+    final payload = <String, dynamic>{
+      'title':       title,
+      'subtitle':    subtitle ?? '',
+      'status':      status,
+      'imageUrl':    imageUrl ?? '',
+      'stream_url':  streamUrl ?? '',
+      'ip_address':  ipAddress ?? '',
+      'is_ptz':      isPtz,
+      'device_type': deviceType,
+    };
+    if (port != null)      payload['port']      = port;
+    if (latitude != null)  payload['latitude']  = latitude;
+    if (longitude != null) payload['longitude'] = longitude;
+
     final response = await http.post(
       Uri.parse('$baseUrl/devices'),
       headers: _authHeaders(token),
-      body: jsonEncode({
-        'title':    title,
-        'subtitle': subtitle ?? '',
-        'status':   status,
-        'imageUrl': imageUrl ?? '',
-      }),
+      body: jsonEncode(payload),
     ).timeout(const Duration(seconds: 10));
 
     if (response.statusCode == 201) return jsonDecode(response.body);
@@ -140,14 +186,24 @@ class ApiService {
     String? title,
     String? subtitle,
     String? status,
+    String? streamUrl,
+    String? ipAddress,
+    int? port,
+    bool? isPtz,
+    String? deviceType,
   }) async {
     final token = await getToken();
     if (token == null) throw Exception('No hay sesión activa');
 
     final body = <String, dynamic>{};
-    if (title != null)    body['title']    = title;
-    if (subtitle != null) body['subtitle'] = subtitle;
-    if (status != null)   body['status']   = status;
+    if (title != null)      body['title']       = title;
+    if (subtitle != null)   body['subtitle']    = subtitle;
+    if (status != null)     body['status']      = status;
+    if (streamUrl != null)  body['stream_url']  = streamUrl;
+    if (ipAddress != null)  body['ip_address']  = ipAddress;
+    if (port != null)       body['port']        = port;
+    if (isPtz != null)      body['is_ptz']      = isPtz;
+    if (deviceType != null) body['device_type'] = deviceType;
 
     final response = await http.put(
       Uri.parse('$baseUrl/devices/$id'),
@@ -157,6 +213,24 @@ class ApiService {
 
     if (response.statusCode == 200) return jsonDecode(response.body);
     throw _handleError(response, 'Error al actualizar dispositivo');
+  }
+
+  static Future<Map<String, dynamic>> sendPTZCommand(
+    int deviceId,
+    String command, {
+    int speed = 5,
+  }) async {
+    final token = await getToken();
+    if (token == null) throw Exception('No hay sesión activa');
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/devices/$deviceId/ptz'),
+      headers: _authHeaders(token),
+      body: jsonEncode({'command': command, 'speed': speed}),
+    ).timeout(const Duration(seconds: 8));
+
+    if (response.statusCode == 200) return jsonDecode(response.body);
+    throw _handleError(response, 'Error al enviar comando PTZ');
   }
 
   static Future<void> deleteDevice(int id) async {

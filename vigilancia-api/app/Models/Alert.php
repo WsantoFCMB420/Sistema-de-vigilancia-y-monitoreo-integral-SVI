@@ -11,14 +11,36 @@ class Alert extends Model
 
     protected $fillable = [
         'user_id',
+        'device_id',
         'type',
         'priority',
         'location',
         'description',
+        'status',
+        'attended_by',
+        'resolved_at',
+        'latitude',
+        'longitude',
+    ];
+
+    protected $casts = [
+        'latitude' => 'float',
+        'longitude' => 'float',
+        'resolved_at' => 'datetime',
     ];
 
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function device()
+    {
+        return $this->belongsTo(Device::class);
+    }
+
+    public function attendedUser()
+    {
+        return $this->belongsTo(User::class, 'attended_by');
     }
 }

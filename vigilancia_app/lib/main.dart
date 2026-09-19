@@ -14,11 +14,14 @@ import 'screens/ia_module_screen.dart';
 import 'screens/reportes_screen.dart';
 import 'screens/admin_panel_screen.dart';
 import 'screens/profile_screen.dart';
+import 'theme/app_theme.dart';
+import 'theme/theme_controller.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
   final token = prefs.getString('auth_token');
+  await themeController.load();
   runApp(MyApp(initialRoute: token != null ? '/dashboard' : '/login'));
 }
 
@@ -87,10 +90,14 @@ class SessionService {
     return role == 'admin' || role == 'operator';
   }
 
-  /// Cierra sesión y limpia el almacenamiento
+  /// Cierra sesión y limpia el almacenamiento (conserva el tema)
   static Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
+    await prefs.remove(_tokenKey);
+    await prefs.remove(_userNameKey);
+    await prefs.remove(_userEmailKey);
+    await prefs.remove(_userRoleKey);
+    await prefs.remove(_userIdKey);
   }
 
   /// Verifica si hay sesión activa
@@ -107,20 +114,22 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Sentinel Surveillance',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1A5DC8)),
-        useMaterial3: true,
-        fontFamily: 'Roboto',
-      ),
-      initialRoute: initialRoute,
-      routes: AppRoutes.routes,
-      // Pantalla para rutas no encontradas
-      onUnknownRoute: (_) => MaterialPageRoute(
-        builder: (_) => const LoginScreen(),
-      ),
+    return ListenableBuilder(
+      listenable: themeController,
+      builder: (context, _) {
+        return MaterialApp(
+          title: 'Sentinel Surveillance',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light,
+          darkTheme: AppTheme.dark,
+          themeMode: themeController.mode,
+          initialRoute: initialRoute,
+          routes: AppRoutes.routes,
+          onUnknownRoute: (_) => MaterialPageRoute(
+            builder: (_) => const LoginScreen(),
+          ),
+        );
+      },
     );
   }
 }

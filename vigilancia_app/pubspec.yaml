@@ -20,6 +20,11 @@ dependencies:
   # ── Íconos iOS ────────────────────────────────────────────────
   cupertino_icons: ^1.0.8
 
+  # ── Cámara del dispositivo (celular / webcam) ─────────────────
+  camera: ^0.12.1
+  camera_windows: ^0.2.6
+  video_player: ^2.9.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

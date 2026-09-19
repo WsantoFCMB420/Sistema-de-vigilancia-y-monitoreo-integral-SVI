@@ -110,7 +110,7 @@ class _MapScreenState extends State<MapScreen> {
               onTap: () => Navigator.maybePop(context),
               child: Container(
                 width: 36, height: 36,
-                decoration: BoxDecoration(color: _primaryBlue.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
+                decoration: BoxDecoration(color: _primaryBlue.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
                 child: Icon(Icons.arrow_back_rounded, color: _primaryBlue, size: 20),
               ),
             ),
@@ -127,7 +127,7 @@ class _MapScreenState extends State<MapScreen> {
         ),
         CircleAvatar(
           radius: 18,
-          backgroundColor: _primaryBlue.withOpacity(0.15),
+          backgroundColor: _primaryBlue.withValues(alpha: 0.15),
           child: const Icon(Icons.person_rounded, color: _primaryBlue, size: 20),
         ),
       ],
@@ -177,14 +177,14 @@ class _MapScreenState extends State<MapScreen> {
                             width: 80, height: 80,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: _primaryBlue.withOpacity(0.15),
+                              color: _primaryBlue.withValues(alpha: 0.15),
                             ),
                             child: Center(
                               child: Container(
                                 width: 20, height: 20,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: _primaryBlue.withOpacity(0.6),
+                                  color: _primaryBlue.withValues(alpha: 0.6),
                                 ),
                               ),
                             ),
@@ -220,9 +220,9 @@ class _MapScreenState extends State<MapScreen> {
         Container(
           width: 32, height: 32,
           decoration: BoxDecoration(
-            color: isSelected ? color : color.withOpacity(0.85),
+            color: isSelected ? color : color.withValues(alpha: 0.85),
             shape: BoxShape.circle,
-            border: Border.all(color: Colors.white.withOpacity(0.6), width: isSelected ? 2 : 1),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: isSelected ? 2 : 1),
           ),
           child: Icon(node.isAlert ? Icons.warning_rounded : Icons.videocam_rounded, color: Colors.white, size: 16),
         ),
@@ -244,9 +244,9 @@ class _MapScreenState extends State<MapScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: _cardColor.withOpacity(0.92),
+        color: _cardColor.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 3))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 3))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -292,9 +292,9 @@ class _MapScreenState extends State<MapScreen> {
       child: Container(
         width: 38, height: 38,
         decoration: BoxDecoration(
-          color: _cardColor.withOpacity(0.92),
+          color: _cardColor.withValues(alpha: 0.92),
           borderRadius: BorderRadius.circular(10),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 6, offset: const Offset(0, 2))],
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Icon(icon, color: color ?? _textColor, size: 20),
       ),
@@ -307,7 +307,7 @@ class _MapScreenState extends State<MapScreen> {
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 16, offset: const Offset(0, -4))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 16, offset: const Offset(0, -4))],
       ),
       child: Column(
         children: [
@@ -415,7 +415,7 @@ class _MapScreenState extends State<MapScreen> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 20, offset: const Offset(0, -4))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 20, offset: const Offset(0, -4))],
       ),
       child: SafeArea(
         child: SizedBox(
@@ -454,7 +454,7 @@ class _MapGridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFF1A5DC8).withOpacity(0.12)
+      ..color = const Color(0xFF1A5DC8).withValues(alpha: 0.12)
       ..strokeWidth = 0.8;
     for (double y = 0; y < size.height; y += size.height / 10) {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
@@ -463,7 +463,7 @@ class _MapGridPainter extends CustomPainter {
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
     }
     final diagPaint = Paint()
-      ..color = const Color(0xFF1A5DC8).withOpacity(0.07)
+      ..color = const Color(0xFF1A5DC8).withValues(alpha: 0.07)
       ..strokeWidth = 0.5;
     for (double i = -size.height; i < size.width + size.height; i += 60) {
       canvas.drawLine(Offset(i, 0), Offset(i + size.height, size.height), diagPaint);

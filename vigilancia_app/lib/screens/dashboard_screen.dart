@@ -153,7 +153,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               onTap: () => Navigator.pushNamed(context, AppRoutes.profile),
               child: CircleAvatar(
                 radius: 18,
-                backgroundColor: _primaryBlue.withOpacity(0.15),
+                backgroundColor: _primaryBlue.withValues(alpha: 0.15),
                 child: const Icon(Icons.person_rounded, color: _primaryBlue, size: 20),
               ),
             ),
@@ -195,7 +195,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Container(
                   width: 48, height: 48,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
+                    color: Colors.white.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: const Icon(Icons.shield_rounded, color: Colors.white, size: 28),
@@ -217,7 +217,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   leading: Container(
                     width: 38, height: 38,
                     decoration: BoxDecoration(
-                      color: isCurrent ? mod.color : mod.color.withOpacity(0.12),
+                      color: isCurrent ? mod.color : mod.color.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(mod.icon, color: isCurrent ? Colors.white : mod.color, size: 20),
@@ -298,7 +298,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         color: _cardColor,
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 3)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 3)),
         ],
       ),
       child: Column(
@@ -353,7 +353,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     width: isCurrent ? 0 : 1,
                   ),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 2)),
+                    BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2)),
                   ],
                 ),
                 child: Column(
@@ -362,7 +362,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     Container(
                       width: 40, height: 40,
                       decoration: BoxDecoration(
-                        color: isCurrent ? Colors.white.withOpacity(0.2) : mod.color.withOpacity(0.12),
+                        color: isCurrent ? Colors.white.withValues(alpha: 0.2) : mod.color.withValues(alpha: 0.12),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(mod.icon, color: isCurrent ? Colors.white : mod.color, size: 22),
@@ -423,7 +423,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: _cardColor, borderRadius: BorderRadius.circular(14),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8)],
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
             ),
             child: const Row(children: [
               Icon(Icons.check_circle_outline_rounded, color: Color(0xFF43A047), size: 22),
@@ -448,13 +448,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       decoration: BoxDecoration(
         color: cardBg, borderRadius: BorderRadius.circular(14),
         border: Border.all(color: cardBorder, width: 1),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: Row(children: [
         Container(
           width: 40, height: 40,
           decoration: BoxDecoration(
-            color: isDanger ? const Color(0xFFFDECEC) : _primaryBlue.withOpacity(0.08),
+            color: isDanger ? const Color(0xFFFDECEC) : _primaryBlue.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(_alertIcon(alert['type'] ?? ''),
@@ -507,7 +507,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               color: const Color(0xFF0D1117),
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 12, offset: const Offset(0, 4)),
+                BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 12, offset: const Offset(0, 4)),
               ],
             ),
             child: Stack(
@@ -577,7 +577,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _liveChip(IconData icon, String label) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: Colors.black.withOpacity(0.5), borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(20)),
       child: Row(
         children: [
           Icon(icon, color: Colors.white, size: 12),
@@ -636,7 +636,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               decoration: BoxDecoration(
                 color: _cardColor,
                 borderRadius: BorderRadius.circular(14),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 2))],
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
               ),
               child: const Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -669,7 +669,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           backgroundColor: _dangerColor,
           foregroundColor: Colors.white,
           elevation: 4,
-          shadowColor: _dangerColor.withOpacity(0.4),
+          shadowColor: _dangerColor.withValues(alpha: 0.4),
           minimumSize: const Size(double.infinity, 50),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
         ),
@@ -723,9 +723,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
+          color: color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.3)),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
         ),
         child: Row(
           children: [

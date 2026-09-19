@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
 
 class CameraViewScreen extends StatefulWidget {
   final String cameraId;
@@ -27,6 +28,57 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
   bool _isMuted = false;
   double _timeline = 0.72; // posición del scrubber
 
+  // ── Datos dinámicos del dispositivo / cámara ─────────────────────────────
+  bool _argsLoaded = false;
+  int? _deviceId;
+  String _cameraTitle = 'Perimeter North';
+  String _streamUrl = '';
+  String _ipAddress = '';
+  int? _port;
+  bool _isPtz = true;
+  String? _ptzFeedback;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_argsLoaded) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is Map<String, dynamic>) {
+        _deviceId = args['id'] is int ? args['id'] : int.tryParse(args['id']?.toString() ?? '');
+        _cameraTitle = args['title'] ?? widget.cameraName;
+        _streamUrl = args['stream_url'] ?? '';
+        _ipAddress = args['ip_address'] ?? '';
+        _port = args['port'] is int ? args['port'] : int.tryParse(args['port']?.toString() ?? '');
+        _isPtz = args['is_ptz'] == true || args['is_ptz'] == 1;
+      } else {
+        _cameraTitle = widget.cameraName;
+      }
+      _argsLoaded = true;
+    }
+  }
+
+  void _sendPTZ(String command) async {
+    setState(() => _ptzFeedback = 'PTZ: $command...');
+    if (_deviceId == null) {
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) setState(() => _ptzFeedback = 'PTZ: $command (simulado)');
+      });
+      return;
+    }
+
+    try {
+      await ApiService.sendPTZCommand(_deviceId!, command);
+      if (!mounted) return;
+      setState(() => _ptzFeedback = 'PTZ: $command ✓');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _ptzFeedback = 'Error PTZ');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error PTZ: $e'), duration: const Duration(seconds: 2)),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -49,6 +101,7 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
 
   // ── AppBar ────────────────────────────────────────────────────────────────
   Widget _buildAppBar() {
+    final displayId = _deviceId != null ? '#$_deviceId' : widget.cameraId;
     return Container(
       color: const Color(0xFF0D1117),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
@@ -67,21 +120,26 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Camera ${widget.cameraId} - ${widget.cameraName}',
+                  'Cámara $displayId - $_cameraTitle',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
                 Row(
                   children: [
                     _chip('LIVE', const Color(0xFFE53935)),
                     const SizedBox(width: 6),
-                    _chip('4K ULTRA HD', const Color(0xFF1A5DC8)),
+                    _chip(_ipAddress.isNotEmpty ? _ipAddress : '4K ULTRA HD', const Color(0xFF1A5DC8)),
                     const SizedBox(width: 6),
-                    _chip('60 FPS', const Color(0xFF43A047)),
+                    if (_isPtz)
+                      _chip('PTZ ACTIVO', const Color(0xFF00897B))
+                    else
+                      _chip('FIJA', const Color(0xFF6B7A99)),
                   ],
                 ),
               ],
@@ -126,9 +184,9 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.18),
+        color: color.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withOpacity(0.4), width: 0.5),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 0.5),
       ),
       child: Text(
         label,
@@ -158,7 +216,7 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
               icon: Icons.person_rounded,
               value: '2 Humans detected',
               iconColor: _primaryBlue,
-              bgColor: _primaryBlue.withOpacity(0.12),
+              bgColor: _primaryBlue.withValues(alpha: 0.12),
             ),
           ),
           const SizedBox(width: 10),
@@ -168,7 +226,7 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
               icon: Icons.network_check_rounded,
               value: 'Latency: 12ms',
               iconColor: const Color(0xFF43A047),
-              bgColor: const Color(0xFF43A047).withOpacity(0.12),
+              bgColor: const Color(0xFF43A047).withValues(alpha: 0.12),
             ),
           ),
         ],
@@ -188,7 +246,7 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: iconColor.withOpacity(0.25), width: 0.8),
+        border: Border.all(color: iconColor.withValues(alpha: 0.25), width: 0.8),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -198,7 +256,7 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
             style: TextStyle(
               fontSize: 9,
               fontWeight: FontWeight.w600,
-              color: iconColor.withOpacity(0.8),
+              color: iconColor.withValues(alpha: 0.8),
               letterSpacing: 0.6,
             ),
           ),
@@ -255,11 +313,11 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
             width: 6,
             height: 6,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.8),
+              color: Colors.white.withValues(alpha: 0.8),
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.white.withOpacity(0.4),
+                  color: Colors.white.withValues(alpha: 0.4),
                   blurRadius: 12,
                   spreadRadius: 4,
                 ),
@@ -274,11 +332,11 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
             width: 5,
             height: 5,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.7),
+              color: Colors.white.withValues(alpha: 0.7),
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.white.withOpacity(0.3),
+                  color: Colors.white.withValues(alpha: 0.3),
                   blurRadius: 10,
                   spreadRadius: 3,
                 ),
@@ -341,8 +399,53 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
             ),
           ),
         ),
+        // Stream info overlay si está configurado
+        if (_streamUrl.isNotEmpty)
+          Positioned(
+            top: 12,
+            left: 12,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.65),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.white24, width: 0.5),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.stream_rounded, color: Color(0xFF43A047), size: 12),
+                  const SizedBox(width: 5),
+                  Text(
+                    _streamUrl,
+                    style: const TextStyle(color: Colors.white70, fontSize: 10, fontFamily: 'monospace'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+        // Feedback de PTZ
+        if (_ptzFeedback != null)
+          Positioned(
+            top: 12,
+            right: 12,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A5DC8).withValues(alpha: 0.85),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                _ptzFeedback!,
+                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+
         // Joystick PTZ (centro-derecha)
         Positioned(right: 20, bottom: 60, child: _buildPTZJoystick()),
+
         // Botón ALARM
         Positioned(
           left: 0,
@@ -358,12 +461,12 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
                   color: _dangerColor,
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.3),
+                    color: Colors.white.withValues(alpha: 0.3),
                     width: 2,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: _dangerColor.withOpacity(0.5),
+                      color: _dangerColor.withValues(alpha: 0.5),
                       blurRadius: 14,
                       spreadRadius: 2,
                     ),
@@ -397,8 +500,8 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
           bottom: 8,
           left: 12,
           child: Text(
-            '20:04:14 LIVE',
-            style: TextStyle(
+            '${TimeOfDay.now().format(context)} LIVE',
+            style: const TextStyle(
               color: _primaryBlue,
               fontSize: 11,
               fontWeight: FontWeight.w600,
@@ -415,45 +518,49 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
       width: 110,
       height: 110,
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.55),
+        color: Colors.black.withValues(alpha: 0.55),
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withOpacity(0.15), width: 0.8),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.15), width: 0.8),
       ),
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Centro
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              color: _primaryBlue,
-              shape: BoxShape.circle,
+          // Centro (Stop)
+          GestureDetector(
+            onTap: () => _sendPTZ('stop'),
+            child: Container(
+              width: 28,
+              height: 28,
+              decoration: const BoxDecoration(
+                color: _primaryBlue,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.pan_tool_rounded, color: Colors.white, size: 14),
             ),
           ),
           // Flechas
-          Positioned(top: 8, child: _ptzArrow(Icons.keyboard_arrow_up_rounded)),
+          Positioned(top: 8, child: _ptzArrow(Icons.keyboard_arrow_up_rounded, () => _sendPTZ('up'))),
           Positioned(
             bottom: 8,
-            child: _ptzArrow(Icons.keyboard_arrow_down_rounded),
+            child: _ptzArrow(Icons.keyboard_arrow_down_rounded, () => _sendPTZ('down')),
           ),
           Positioned(
             left: 8,
-            child: _ptzArrow(Icons.keyboard_arrow_left_rounded),
+            child: _ptzArrow(Icons.keyboard_arrow_left_rounded, () => _sendPTZ('left')),
           ),
           Positioned(
             right: 8,
-            child: _ptzArrow(Icons.keyboard_arrow_right_rounded),
+            child: _ptzArrow(Icons.keyboard_arrow_right_rounded, () => _sendPTZ('right')),
           ),
         ],
       ),
     );
   }
 
-  Widget _ptzArrow(IconData icon) {
+  Widget _ptzArrow(IconData icon, VoidCallback onTap) {
     return GestureDetector(
-      onTap: () {},
-      child: Icon(icon, color: Colors.white.withOpacity(0.85), size: 26),
+      onTap: onTap,
+      child: Icon(icon, color: Colors.white.withValues(alpha: 0.85), size: 26),
     );
   }
 
@@ -469,15 +576,19 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
             _isMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
             onTap: () => setState(() => _isMuted = !_isMuted),
           ),
-          _controlBtn(Icons.camera_alt_rounded, onTap: () {}),
-          _controlBtn(Icons.replay_10_rounded, onTap: () {}),
+          _controlBtn(Icons.camera_alt_rounded, onTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Captura de pantalla guardada'), duration: Duration(seconds: 1)),
+            );
+          }),
+          _controlBtn(Icons.zoom_out_rounded, onTap: () => _sendPTZ('zoom_out')),
           // Pause/Play — destacado
           GestureDetector(
             onTap: () => setState(() => _isPlaying = !_isPlaying),
             child: Container(
               width: 52,
               height: 52,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: _primaryBlue,
                 shape: BoxShape.circle,
               ),
@@ -488,8 +599,8 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
               ),
             ),
           ),
-          _controlBtn(Icons.forward_10_rounded, onTap: () {}),
-          _controlBtn(Icons.zoom_in_rounded, onTap: () {}),
+          _controlBtn(Icons.zoom_in_rounded, onTap: () => _sendPTZ('zoom_in')),
+          _controlBtn(Icons.notifications_active_rounded, onTap: _showAlarmDialog),
         ],
       ),
     );
@@ -502,7 +613,7 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
         width: 38,
         height: 38,
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.08),
+          color: Colors.white.withValues(alpha: 0.08),
           shape: BoxShape.circle,
         ),
         child: Icon(icon, color: Colors.white70, size: 20),
@@ -523,16 +634,15 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
               thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
               overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
               activeTrackColor: _primaryBlue,
-              inactiveTrackColor: Colors.white.withOpacity(0.15),
+              inactiveTrackColor: Colors.white.withValues(alpha: 0.15),
               thumbColor: _primaryBlue,
-              overlayColor: _primaryBlue.withOpacity(0.2),
+              overlayColor: _primaryBlue.withValues(alpha: 0.2),
             ),
             child: Slider(
               value: _timeline,
               onChanged: (v) => setState(() => _timeline = v),
             ),
           ),
-          // Timestamps
           const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -578,30 +688,41 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Emitir Alerta',
-              style: TextStyle(
+            Text(
+              'Emitir Alerta desde "$_cameraTitle"',
+              style: const TextStyle(
                 color: Colors.white,
-                fontSize: 18,
+                fontSize: 17,
                 fontWeight: FontWeight.w700,
               ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Esta alerta quedará vinculada automáticamente a esta cámara.',
+              style: TextStyle(color: Colors.white60, fontSize: 12),
             ),
             const SizedBox(height: 16),
             _alarmOption(
               Icons.warning_amber_rounded,
-              'Intrusión',
+              'Intrusión / Seguridad',
+              'Seguridad',
+              'Crítica',
               const Color(0xFFE53935),
             ),
             const SizedBox(height: 8),
             _alarmOption(
               Icons.local_fire_department_rounded,
-              'Emergencia',
+              'Incendio / Evacuación',
+              'Incendio',
+              'Crítica',
               const Color(0xFFFF6D00),
             ),
             const SizedBox(height: 8),
             _alarmOption(
               Icons.info_rounded,
-              'Aviso General',
+              'Aviso General / Sospecha',
+              'Seguridad',
+              'Media',
               const Color(0xFF1A5DC8),
             ),
             const SizedBox(height: 16),
@@ -611,15 +732,59 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
     );
   }
 
-  Widget _alarmOption(IconData icon, String label, Color color) {
+  Widget _alarmOption(
+    IconData icon,
+    String label,
+    String type,
+    String priority,
+    Color color,
+  ) {
     return GestureDetector(
-      onTap: () => Navigator.pop(context),
+      onTap: () async {
+        Navigator.pop(context);
+        try {
+          await ApiService.sendAlert(
+            type: type,
+            priority: priority,
+            location: _cameraTitle,
+            description: 'Alerta detectada desde la cámara "$_cameraTitle"',
+            deviceId: _deviceId,
+            status: 'Pendiente',
+          );
+          if (!mounted) return;
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Row(
+                children: [
+                  Icon(Icons.check_circle_rounded, color: Color(0xFF43A047), size: 24),
+                  SizedBox(width: 8),
+                  Text('Alerta Emitida'),
+                ],
+              ),
+              content: Text('Alerta "$label" vinculada a "$_cameraTitle" enviada correctamente.'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Entendido'),
+                ),
+              ],
+            ),
+          );
+        } catch (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error al emitir alerta: $e'), backgroundColor: Colors.redAccent),
+          );
+        }
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.3)),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
         ),
         child: Row(
           children: [
@@ -670,7 +835,7 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.06),
+          color: Colors.white.withValues(alpha: 0.06),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(

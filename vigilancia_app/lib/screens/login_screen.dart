@@ -265,7 +265,7 @@ final response = await http.post(
             borderRadius: BorderRadius.circular(18),
             boxShadow: [
               BoxShadow(
-                color: _primaryBlue.withOpacity(0.35),
+                color: _primaryBlue.withValues(alpha: 0.35),
                 blurRadius: 20,
                 offset: const Offset(0, 8),
               ),
@@ -296,7 +296,7 @@ final response = await http.post(
         color: _cardColor,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.06),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.06),
               blurRadius: 24, offset: const Offset(0, 6)),
         ],
       ),
@@ -418,7 +418,7 @@ final response = await http.post(
         style: ElevatedButton.styleFrom(
           backgroundColor: _primaryBlue,
           foregroundColor: Colors.white,
-          disabledBackgroundColor: _primaryBlue.withOpacity(0.6),
+          disabledBackgroundColor: _primaryBlue.withValues(alpha: 0.6),
           elevation: 0,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
@@ -472,7 +472,7 @@ final response = await http.post(
               color: Colors.white,
               shape: BoxShape.circle,
               boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.08),
+                BoxShadow(color: Colors.black.withValues(alpha: 0.08),
                     blurRadius: 12, offset: const Offset(0, 4)),
               ],
             ),
