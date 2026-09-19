@@ -19,13 +19,13 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   bool _isLoading = false;
 
-  static const Color _bgColor     = Color(0xFFDDE8F5);
+  static const Color _bgColor = Color(0xFFDDE8F5);
   static const Color _primaryBlue = Color(0xFF1A5DC8);
-  static const Color _lightBlue   = Color(0xFFEEF4FF);
-  static const Color _cardColor   = Colors.white;
-  static const Color _labelColor  = Color(0xFF6B7A99);
-  static const Color _textColor   = Color(0xFF1A2340);
-  static const Color _hintColor   = Color(0xFFADB8CC);
+  static const Color _lightBlue = Color(0xFFEEF4FF);
+  static const Color _cardColor = Colors.white;
+  static const Color _labelColor = Color(0xFF6B7A99);
+  static const Color _textColor = Color(0xFF1A2340);
+  static const Color _hintColor = Color(0xFFADB8CC);
   static const Color _borderColor = Color(0xFFD0DAEA);
 
   @override
@@ -41,23 +41,25 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-final response = await http.post(
-  Uri.parse('http://127.0.0.1:8000/api/login'),
-  headers: {'Content-Type': 'application/json'},
-  body: jsonEncode({
-    'email':    _emailController.text.trim(),
-    'password': _passwordController.text,
-  }),
-).timeout(const Duration(seconds: 10)); 
+      final response = await http
+          .post(
+            Uri.parse('https://humberto.alwaysdata.net/api/login'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'email': _emailController.text.trim(),
+              'password': _passwordController.text,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
         await SessionService.saveSession(
-          token:  data['token'],
-          name:   data['user']['name'],
-          email:  data['user']['email'],
-          role:   data['user']['role'] ?? 'viewer',
+          token: data['token'],
+          name: data['user']['name'],
+          email: data['user']['email'],
+          role: data['user']['role'] ?? 'viewer',
           userId: data['user']['id'] ?? 0,
         );
 
@@ -74,7 +76,8 @@ final response = await http.post(
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(data['error'] ?? data['message'] ?? 'Credenciales incorrectas'),
+            content: Text(
+                data['error'] ?? data['message'] ?? 'Credenciales incorrectas'),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -117,7 +120,8 @@ final response = await http.post(
         builder: (ctx, setDialogState) {
           bool loading = false;
           return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             title: const Text(
               'Recuperar contraseña',
               style: TextStyle(fontWeight: FontWeight.w700, color: _textColor),
@@ -144,10 +148,11 @@ final response = await http.post(
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: _primaryBlue, width: 1.5),
+                      borderSide:
+                          const BorderSide(color: _primaryBlue, width: 1.5),
                     ),
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 14),
                   ),
                 ),
                 if (loading) const SizedBox(height: 16),
@@ -178,11 +183,14 @@ final response = await http.post(
                         }
                         setDialogState(() => loading = true);
                         try {
-                          final res = await http.post(
-                            Uri.parse('http://127.0.0.1:8000/api/forgot-password'),
-                            headers: {'Content-Type': 'application/json'},
-                            body: jsonEncode({'email': email}),
-                          ).timeout(const Duration(seconds: 10));
+                          final res = await http
+                              .post(
+                                Uri.parse(
+                                    'https://humberto.alwaysdata.net/api/forgot-password'),
+                                headers: {'Content-Type': 'application/json'},
+                                body: jsonEncode({'email': email}),
+                              )
+                              .timeout(const Duration(seconds: 10));
 
                           final data = jsonDecode(res.body);
                           if (res.statusCode == 200) {
@@ -190,7 +198,8 @@ final response = await http.post(
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
-                                  data['message'] ?? 'Correo enviado. Revisa tu bandeja de entrada.',
+                                  data['message'] ??
+                                      'Correo enviado. Revisa tu bandeja de entrada.',
                                 ),
                                 backgroundColor: _primaryBlue,
                               ),
@@ -200,7 +209,9 @@ final response = await http.post(
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
-                                  data['message'] ?? data['error'] ?? 'Error al enviar el correo',
+                                  data['message'] ??
+                                      data['error'] ??
+                                      'Error al enviar el correo',
                                 ),
                                 backgroundColor: Colors.redAccent,
                               ),
@@ -210,7 +221,8 @@ final response = await http.post(
                           setDialogState(() => loading = false);
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('No se pudo conectar con el servidor.'),
+                              content:
+                                  Text('No se pudo conectar con el servidor.'),
                               backgroundColor: Colors.redAccent,
                             ),
                           );
@@ -222,7 +234,8 @@ final response = await http.post(
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                child: const Text('Enviar', style: TextStyle(color: Colors.white)),
+                child:
+                    const Text('Enviar', style: TextStyle(color: Colors.white)),
               ),
             ],
           );
@@ -259,7 +272,8 @@ final response = await http.post(
     return Column(
       children: [
         Container(
-          width: 72, height: 72,
+          width: 72,
+          height: 72,
           decoration: BoxDecoration(
             color: _primaryBlue,
             borderRadius: BorderRadius.circular(18),
@@ -271,13 +285,17 @@ final response = await http.post(
               ),
             ],
           ),
-          child: const Icon(Icons.shield_rounded, color: Colors.white, size: 40),
+          child:
+              const Icon(Icons.shield_rounded, color: Colors.white, size: 40),
         ),
         const SizedBox(height: 14),
         const Text(
           'Sentinel Surveillance',
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700,
-              color: _primaryBlue, letterSpacing: 0.2),
+          style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: _primaryBlue,
+              letterSpacing: 0.2),
         ),
         const SizedBox(height: 6),
         const Text(
@@ -296,8 +314,10 @@ final response = await http.post(
         color: _cardColor,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 24, offset: const Offset(0, 6)),
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 24,
+              offset: const Offset(0, 6)),
         ],
       ),
       padding: const EdgeInsets.all(24),
@@ -307,26 +327,29 @@ final response = await http.post(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('Bienvenido',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700,
+                style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
                     color: _textColor)),
             const SizedBox(height: 4),
             const Text('Ingrese sus credenciales para continuar',
                 style: TextStyle(fontSize: 13, color: _labelColor)),
             const SizedBox(height: 24),
-
             _buildLabel('CORREO ELECTRÓNICO'),
             const SizedBox(height: 6),
             _buildEmailField(),
             const SizedBox(height: 18),
-
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 _buildLabel('CONTRASEÑA'),
                 GestureDetector(
-                  onTap: _showForgotPasswordDialog,  // ← Ahora ejecuta la función
+                  onTap:
+                      _showForgotPasswordDialog, // ← Ahora ejecuta la función
                   child: const Text('¿Olvidó su contraseña?',
-                      style: TextStyle(fontSize: 12, color: _primaryBlue,
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: _primaryBlue,
                           fontWeight: FontWeight.w500)),
                 ),
               ],
@@ -334,7 +357,6 @@ final response = await http.post(
             const SizedBox(height: 6),
             _buildPasswordField(),
             const SizedBox(height: 28),
-
             _buildLoginButton(),
             const SizedBox(height: 20),
             _buildRegisterSection(),
@@ -346,8 +368,11 @@ final response = await http.post(
 
   Widget _buildLabel(String text) {
     return Text(text,
-        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
-            color: _labelColor, letterSpacing: 0.8));
+        style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: _labelColor,
+            letterSpacing: 0.8));
   }
 
   Widget _buildEmailField() {
@@ -361,7 +386,8 @@ final response = await http.post(
       ),
       validator: (v) {
         if (v == null || v.isEmpty) return 'Ingrese su correo';
-        if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v)) return 'Correo no válido';
+        if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v))
+          return 'Correo no válido';
         return null;
       },
     );
@@ -377,8 +403,11 @@ final response = await http.post(
         suffix: GestureDetector(
           onTap: () => setState(() => _obscurePassword = !_obscurePassword),
           child: Icon(
-            _obscurePassword ? Icons.lock_outline_rounded : Icons.lock_open_rounded,
-            size: 18, color: _hintColor,
+            _obscurePassword
+                ? Icons.lock_outline_rounded
+                : Icons.lock_open_rounded,
+            size: 18,
+            color: _hintColor,
           ),
         ),
       ),
@@ -401,11 +430,21 @@ final response = await http.post(
       filled: true,
       fillColor: _lightBlue,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      border:           OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _borderColor)),
-      enabledBorder:    OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _borderColor)),
-      focusedBorder:    OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _primaryBlue, width: 1.5)),
-      errorBorder:      OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.redAccent)),
-      focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.redAccent, width: 1.5)),
+      border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _borderColor)),
+      enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _borderColor)),
+      focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _primaryBlue, width: 1.5)),
+      errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.redAccent)),
+      focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.redAccent, width: 1.5)),
     );
   }
 
@@ -420,13 +459,20 @@ final response = await http.post(
           foregroundColor: Colors.white,
           disabledBackgroundColor: _primaryBlue.withValues(alpha: 0.6),
           elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
         child: _isLoading
-            ? const SizedBox(width: 22, height: 22,
-                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                    color: Colors.white, strokeWidth: 2.5))
             : const Text('Iniciar sesión',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, letterSpacing: 0.3)),
+                style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.3)),
       ),
     );
   }
@@ -445,7 +491,8 @@ final response = await http.post(
             style: OutlinedButton.styleFrom(
               foregroundColor: _primaryBlue,
               side: const BorderSide(color: _primaryBlue, width: 1.5),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
             ),
             child: const Text('Registrarse',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
@@ -467,21 +514,26 @@ final response = await http.post(
             );
           },
           child: Container(
-            width: 54, height: 54,
+            width: 54,
+            height: 54,
             decoration: BoxDecoration(
               color: Colors.white,
               shape: BoxShape.circle,
               boxShadow: [
-                BoxShadow(color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 12, offset: const Offset(0, 4)),
+                BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4)),
               ],
             ),
-            child: const Icon(Icons.fingerprint_rounded, size: 30, color: _primaryBlue),
+            child: const Icon(Icons.fingerprint_rounded,
+                size: 30, color: _primaryBlue),
           ),
         ),
         const SizedBox(height: 8),
         const Text('Ingreso Biométrico',
-            style: TextStyle(fontSize: 12, color: _labelColor, fontWeight: FontWeight.w500)),
+            style: TextStyle(
+                fontSize: 12, color: _labelColor, fontWeight: FontWeight.w500)),
       ],
     );
   }
