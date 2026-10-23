@@ -26,6 +26,21 @@ class _LoginScreenState extends State<LoginScreen> {
   static const Color _primaryBlue = Color(0xFF1A5DC8);
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !SessionService.expiredNotice) return;
+      SessionService.expiredNotice = false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tu sesión expiró. Inicia sesión de nuevo.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    });
+  }
+
+  @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
@@ -41,7 +56,10 @@ class _LoginScreenState extends State<LoginScreen> {
       final response = await http
           .post(
             Uri.parse('https://humberto.alwaysdata.net/api/login'),
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
             body: jsonEncode({
               'email': _emailController.text.trim(),
               'password': _passwordController.text,

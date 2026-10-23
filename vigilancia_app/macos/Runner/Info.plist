@@ -28,5 +28,7 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSCameraUsageDescription</key>
+	<string>SVI necesita acceso a la cámara para mostrar el video de vigilancia en vivo.</string>
 </dict>
 </plist>

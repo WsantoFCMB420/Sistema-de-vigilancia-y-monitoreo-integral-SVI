@@ -1,7 +1,5 @@
-import 'dart:convert'; // para jsonDecode en _getCurrentUserId
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http; // para la petición a /api/user
 import '../services/api_service.dart';
 import '../main.dart'; // AppRoutes
 import '../widgets/theme_toggle_button.dart';
@@ -44,19 +42,9 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
 
   Future<void> _getCurrentUserId() async {
     try {
-      final token = await ApiService.getToken();
-      if (token == null) return;
-      final response = await http.get(
-        Uri.parse('${ApiService.baseUrl}/user'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        setState(() => _currentUserId = data['id']);
-      }
+      final data = await ApiService.getUser();
+      if (!mounted) return;
+      setState(() => _currentUserId = data['id']);
     } catch (_) {}
   }
 

@@ -1,6 +1,10 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../main.dart';
+import '../widgets/local_camera_preview.dart';
 import '../widgets/theme_toggle_button.dart';
 
 class CameraViewScreen extends StatefulWidget {
@@ -30,11 +34,17 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
   // ── Datos dinámicos del dispositivo / cámara ─────────────────────────────
   bool _argsLoaded = false;
   int? _deviceId;
-  String _cameraTitle = 'Perimeter North';
+  String _cameraTitle = 'Webcam local';
   String _streamUrl = '';
   String _ipAddress = '';
-  bool _isPtz = true;
+  bool _isPtz = false;
   String? _ptzFeedback;
+  String _activeCameraName = 'Cámara del equipo';
+  final GlobalKey<LocalCameraPreviewState> _previewKey =
+      GlobalKey<LocalCameraPreviewState>();
+
+  bool get _useLocalCamera =>
+      _streamUrl.isEmpty || ApiService.isLocalCamera(_streamUrl);
 
   @override
   void didChangeDependencies() {
@@ -43,12 +53,15 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
       final args = ModalRoute.of(context)?.settings.arguments;
       if (args is Map<String, dynamic>) {
         _deviceId = args['id'] is int ? args['id'] : int.tryParse(args['id']?.toString() ?? '');
-        _cameraTitle = args['title'] ?? widget.cameraName;
+        _cameraTitle = args['title'] ?? 'Webcam local';
         _streamUrl = args['stream_url'] ?? '';
         _ipAddress = args['ip_address'] ?? '';
         _isPtz = args['is_ptz'] == true || args['is_ptz'] == 1;
       } else {
-        _cameraTitle = widget.cameraName;
+        _cameraTitle = 'Webcam local';
+        _streamUrl = ApiService.localCameraStream;
+        _ipAddress = 'dispositivo-local';
+        _isPtz = false;
       }
       _argsLoaded = true;
     }
@@ -134,7 +147,7 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
                   children: [
                     _chip('LIVE', const Color(0xFFE53935)),
                     const SizedBox(width: 6),
-                    _chip(_ipAddress.isNotEmpty ? _ipAddress : '4K ULTRA HD', const Color(0xFF1A5DC8)),
+                    _chip(_ipAddress.isNotEmpty ? _ipAddress : 'WEBCAM / USB', const Color(0xFF1A5DC8)),
                     const SizedBox(width: 6),
                     if (_isPtz)
                       _chip('PTZ ACTIVO', const Color(0xFF00897B))
@@ -322,9 +335,9 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
         children: [
           Expanded(
             child: _infoCard(
-              label: 'DETECTIONS',
-              icon: Icons.person_rounded,
-              value: '2 Humans detected',
+              label: 'FUENTE',
+              icon: Icons.videocam_rounded,
+              value: _useLocalCamera ? _activeCameraName : 'Stream de red',
               iconColor: _primaryBlue,
               bgColor: _primaryBlue.withValues(alpha: 0.12),
             ),
@@ -334,7 +347,7 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
             child: _infoCard(
               label: 'NETWORK',
               icon: Icons.network_check_rounded,
-              value: 'Latency: 12ms',
+              value: _useLocalCamera ? 'Webcam / USB local' : 'Cámara IP',
               iconColor: const Color(0xFF43A047),
               bgColor: const Color(0xFF43A047).withValues(alpha: 0.12),
             ),
@@ -393,149 +406,105 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
     );
   }
 
+  Widget _buildLiveSource() {
+    if (_useLocalCamera) {
+      return LocalCameraPreview(
+        key: _previewKey,
+        playing: _isPlaying,
+        onCameraSelected: (camera) {
+          setState(() => _activeCameraName = camera.name);
+        },
+      );
+    }
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.videocam_off_rounded, color: Colors.white54, size: 48),
+            const SizedBox(height: 12),
+            Text(
+              'Esta cámara de red no se puede previsualizar aquí:\n$_streamUrl',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () {
+                setState(() {
+                  _streamUrl = ApiService.localCameraStream;
+                  _ipAddress = 'dispositivo-local';
+                  _isPtz = false;
+                });
+              },
+              icon: const Icon(Icons.videocam_rounded),
+              label: const Text('Usar webcam / USB de este equipo'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _captureSnapshot() async {
+    if (!_useLocalCamera) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('La captura solo está disponible en la cámara local.')),
+      );
+      return;
+    }
+    try {
+      final file = await _previewKey.currentState?.takePicture();
+      if (!mounted) return;
+      if (file == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo capturar la imagen.')),
+        );
+        return;
+      }
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF0D1117),
+          title: const Text('Captura guardada', style: TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (!kIsWeb)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.file(File(file.path), height: 180, fit: BoxFit.cover),
+                ),
+              const SizedBox(height: 8),
+              Text(
+                file.path,
+                style: const TextStyle(color: Colors.white70, fontSize: 11),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cerrar'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al capturar: $e')),
+      );
+    }
+  }
+
   // ── Feed de la cámara con joystick PTZ y botón ALARM ─────────────────────
   Widget _buildCameraFeed() {
     return Stack(
       children: [
-        // Fondo del video
-        Container(
-          width: double.infinity,
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xFF0A1628), Color(0xFF0D1B2A), Color(0xFF0A1220)],
-            ),
-          ),
-          child: const Center(
-            child: Icon(
-              Icons.videocam_rounded,
-              color: Color(0xFF1A3A5C),
-              size: 60,
-            ),
-          ),
-        ),
-        // Efecto de luces (simulado)
-        Positioned(
-          top: 30,
-          left: 40,
-          child: Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.8),
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.white.withValues(alpha: 0.4),
-                  blurRadius: 12,
-                  spreadRadius: 4,
-                ),
-              ],
-            ),
-          ),
-        ),
-        Positioned(
-          top: 25,
-          right: 60,
-          child: Container(
-            width: 5,
-            height: 5,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.7),
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.white.withValues(alpha: 0.3),
-                  blurRadius: 10,
-                  spreadRadius: 3,
-                ),
-              ],
-            ),
-          ),
-        ),
-        // Indicador de personas detectadas (bounding box simulado)
-        Positioned(
-          left: 60,
-          top: 50,
-          child: Container(
-            width: 28,
-            height: 55,
-            decoration: BoxDecoration(
-              border: Border.all(color: _primaryBlue, width: 1.5),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Align(
-              alignment: Alignment.topLeft,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                color: _primaryBlue,
-                child: const Text(
-                  'H1',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 8,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-        Positioned(
-          right: 80,
-          top: 45,
-          child: Container(
-            width: 24,
-            height: 50,
-            decoration: BoxDecoration(
-              border: Border.all(color: _primaryBlue, width: 1.5),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Align(
-              alignment: Alignment.topLeft,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                color: _primaryBlue,
-                child: const Text(
-                  'H2',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 8,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-        // Stream info overlay si está configurado
-        if (_streamUrl.isNotEmpty)
-          Positioned(
-            top: 12,
-            left: 12,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.65),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: Colors.white24, width: 0.5),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.stream_rounded, color: Color(0xFF43A047), size: 12),
-                  const SizedBox(width: 5),
-                  Text(
-                    _streamUrl,
-                    style: const TextStyle(color: Colors.white70, fontSize: 10, fontFamily: 'monospace'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-        // Feedback de PTZ
+        Positioned.fill(child: _buildLiveSource()),
         if (_ptzFeedback != null)
           Positioned(
             top: 12,
@@ -552,11 +521,8 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
               ),
             ),
           ),
-
-        // Joystick PTZ (centro-derecha)
-        Positioned(right: 20, bottom: 60, child: _buildPTZJoystick()),
-
-        // Botón ALARM
+        if (_isPtz && !_useLocalCamera)
+          Positioned(right: 20, bottom: 60, child: _buildPTZJoystick()),
         Positioned(
           left: 0,
           right: 0,
@@ -605,7 +571,6 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
             ),
           ),
         ),
-        // Timestamp
         Positioned(
           bottom: 8,
           left: 12,
@@ -686,11 +651,7 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
             _isMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
             onTap: () => setState(() => _isMuted = !_isMuted),
           ),
-          _controlBtn(Icons.camera_alt_rounded, onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Captura de pantalla guardada'), duration: Duration(seconds: 1)),
-            );
-          }),
+          _controlBtn(Icons.camera_alt_rounded, onTap: _captureSnapshot),
           _controlBtn(Icons.zoom_out_rounded, onTap: () => _sendPTZ('zoom_out')),
           // Pause/Play — destacado
           GestureDetector(

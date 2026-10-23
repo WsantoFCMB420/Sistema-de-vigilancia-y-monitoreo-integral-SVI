@@ -14,14 +14,27 @@ import 'screens/ia_module_screen.dart';
 import 'screens/reportes_screen.dart';
 import 'screens/admin_panel_screen.dart';
 import 'screens/profile_screen.dart';
+import 'services/api_service.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_controller.dart';
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
   final token = prefs.getString('auth_token');
   await themeController.load();
+
+  ApiService.onUnauthorized = () async {
+    SessionService.expiredNotice = true;
+    await SessionService.logout();
+    navigatorKey.currentState?.pushNamedAndRemoveUntil(
+      AppRoutes.login,
+      (_) => false,
+    );
+  };
+
   runApp(MyApp(initialRoute: token != null ? '/dashboard' : '/login'));
 }
 
@@ -32,6 +45,7 @@ class SessionService {
   static const _userEmailKey = 'user_email';
   static const _userRoleKey  = 'user_role';
   static const _userIdKey    = 'user_id';
+  static bool expiredNotice = false;
 
   /// Guarda el token y datos del usuario tras login exitoso
   static Future<void> saveSession({
@@ -108,9 +122,33 @@ class SessionService {
 }
 
 // ── App principal ─────────────────────────────────────────────────
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   final String initialRoute;
   const MyApp({super.key, required this.initialRoute});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ApiService.validateSession(force: true);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -119,11 +157,12 @@ class MyApp extends StatelessWidget {
       builder: (context, _) {
         return MaterialApp(
           title: 'SVI',
+          navigatorKey: navigatorKey,
           debugShowCheckedModeBanner: false,
           theme: AppTheme.light,
           darkTheme: AppTheme.dark,
           themeMode: themeController.mode,
-          initialRoute: initialRoute,
+          initialRoute: widget.initialRoute,
           routes: AppRoutes.routes,
           onUnknownRoute: (_) => MaterialPageRoute(
             builder: (_) => const LoginScreen(),
@@ -191,15 +230,26 @@ class _AuthGuardState extends State<AuthGuard> {
     final loggedIn = await SessionService.isLoggedIn();
     if (!mounted) return;
     if (!loggedIn) {
-      // Sin sesión → ir al login y limpiar el stack
       Navigator.pushNamedAndRemoveUntil(
           context, AppRoutes.login, (_) => false);
-    } else {
-      setState(() {
-        _authenticated = true;
-        _checking = false;
-      });
+      return;
     }
+
+    final valid = await ApiService.validateSession();
+    if (!mounted) return;
+    if (!valid) {
+      SessionService.expiredNotice = true;
+      await SessionService.logout();
+      if (!mounted) return;
+      Navigator.pushNamedAndRemoveUntil(
+          context, AppRoutes.login, (_) => false);
+      return;
+    }
+
+    setState(() {
+      _authenticated = true;
+      _checking = false;
+    });
   }
 
   @override

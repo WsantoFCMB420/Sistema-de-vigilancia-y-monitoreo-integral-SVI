@@ -189,8 +189,8 @@ class _DevicesScreenState extends State<DevicesScreen> {
                       Expanded(
                         child: _sourceChip(
                           selected: cameraSource == 'local',
-                          icon: Icons.smartphone_rounded,
-                          label: 'Este dispositivo',
+                          icon: Icons.videocam_rounded,
+                          label: 'Webcam / USB',
                           onTap: () => setSheet(() => cameraSource = 'local'),
                         ),
                       ),
@@ -216,7 +216,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
                         border: Border.all(color: _primaryBlue.withValues(alpha: 0.25)),
                       ),
                       child: Text(
-                        'Usará la cámara del celular o la webcam del computador. Es la opción de prueba funcional.',
+                        'Usará la webcam del portátil o una cámara USB conectada a este equipo. Si hay varias, podrás elegirla en el visor.',
                         style: TextStyle(fontSize: 12, color: _c.text, height: 1.35),
                       ),
                     )

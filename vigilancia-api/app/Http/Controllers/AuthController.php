@@ -47,8 +47,17 @@ class AuthController extends Controller
             return response()->json(['error' => 'Credenciales incorrectas'], 401);
         }
 
-        // Revocar tokens anteriores para evitar acumulación
-        $user->tokens()->delete();
+        // No revocar sesiones de otros dispositivos: si se borran todos los
+        // tokens, la app móvil queda en el dashboard con un token muerto.
+        $user->tokens()
+            ->where(function ($query) {
+                $query->where('last_used_at', '<', now()->subDays(30))
+                    ->orWhere(function ($stale) {
+                        $stale->whereNull('last_used_at')
+                            ->where('created_at', '<', now()->subDays(30));
+                    });
+            })
+            ->delete();
 
         $token = $user->createToken('auth_token')->plainTextToken;
 

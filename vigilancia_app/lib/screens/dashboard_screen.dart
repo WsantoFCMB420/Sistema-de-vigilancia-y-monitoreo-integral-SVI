@@ -34,6 +34,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             .cast<Map<String, dynamic>>();
         _loading = false;
       });
+    } on SessionExpiredException {
+      return;
     } catch (e) {
       if (!mounted) return;
       setState(() { _error = e.toString(); _loading = false; });
@@ -538,7 +540,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       children: [
                         Icon(Icons.circle, color: Colors.white, size: 6),
                         SizedBox(width: 4),
-                        Text('REC  SECTOR A1',
+                        Text('EN VIVO',
                             style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600)),
                       ],
                     ),
