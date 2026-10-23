@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../main.dart';
+import '../widgets/theme_toggle_button.dart';
 
 class CameraViewScreen extends StatefulWidget {
   final String cameraId;
@@ -19,10 +21,7 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
   // ── Paleta idéntica al proyecto ───────────────────────────────────────────
   static const Color _primaryBlue = Color(0xFF1A5DC8);
   static const Color _textColor = Color(0xFF1A2340);
-  static const Color _labelColor = Color(0xFF6B7A99);
   static const Color _dangerColor = Color(0xFFE53935);
-  static const Color _cardColor = Colors.white;
-  static const Color _bgColor = Color(0xFFDDE8F5);
 
   bool _isPlaying = true;
   bool _isMuted = false;
@@ -34,7 +33,6 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
   String _cameraTitle = 'Perimeter North';
   String _streamUrl = '';
   String _ipAddress = '';
-  int? _port;
   bool _isPtz = true;
   String? _ptzFeedback;
 
@@ -48,7 +46,6 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
         _cameraTitle = args['title'] ?? widget.cameraName;
         _streamUrl = args['stream_url'] ?? '';
         _ipAddress = args['ip_address'] ?? '';
-        _port = args['port'] is int ? args['port'] : int.tryParse(args['port']?.toString() ?? '');
         _isPtz = args['is_ptz'] == true || args['is_ptz'] == 1;
       } else {
         _cameraTitle = widget.cameraName;
@@ -83,6 +80,7 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
+      drawer: _buildDrawer(),
       body: SafeArea(
         child: Column(
           children: [
@@ -107,13 +105,15 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
       child: Row(
         children: [
-          IconButton(
-            icon: const Icon(
-              Icons.arrow_back_ios_new_rounded,
-              color: Colors.white,
-              size: 20,
+          Builder(
+            builder: (ctx) => IconButton(
+              icon: const Icon(
+                Icons.menu_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+              onPressed: () => Scaffold.of(ctx).openDrawer(),
             ),
-            onPressed: () => Navigator.maybePop(context),
           ),
           Expanded(
             child: Column(
@@ -167,6 +167,17 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
               ],
             ),
           ),
+          const SizedBox(width: 4),
+          const ThemeToggleButton(),
+          const SizedBox(width: 4),
+          GestureDetector(
+            onTap: () => Navigator.pushNamed(context, AppRoutes.profile),
+            child: CircleAvatar(
+              radius: 16,
+              backgroundColor: _primaryBlue.withValues(alpha: 0.25),
+              child: const Icon(Icons.person_rounded, color: Colors.white, size: 18),
+            ),
+          ),
           IconButton(
             icon: const Icon(
               Icons.more_vert_rounded,
@@ -175,6 +186,105 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
             ),
             onPressed: () => _showCameraMenu(),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDrawer() {
+    final allModules = [
+      _ModuleItem(Icons.dashboard_rounded, 'Dashboard', AppRoutes.dashboard, Color(0xFF1A5DC8)),
+      _ModuleItem(Icons.map_rounded, 'Mapa', AppRoutes.map, Color(0xFF00897B)),
+      _ModuleItem(Icons.videocam_rounded, 'Cámaras', AppRoutes.cameraView, Color(0xFF6D4C41)),
+      _ModuleItem(Icons.devices_rounded, 'Dispositivos', AppRoutes.devices, Color(0xFF5E35B1)),
+      _ModuleItem(Icons.warning_amber_rounded, 'Alertas', AppRoutes.alerts, Color(0xFFE53935)),
+      _ModuleItem(Icons.forum_rounded, 'Comunicación', AppRoutes.communication, Color(0xFF0288D1)),
+      _ModuleItem(Icons.psychology_rounded, 'IA Hub', AppRoutes.iaModule, Color(0xFF7B1FA2)),
+      _ModuleItem(Icons.assessment_rounded, 'Reportes', AppRoutes.reportes, Color(0xFF2E7D32)),
+      _ModuleItem(Icons.admin_panel_settings_rounded, 'Admin', AppRoutes.admin, Color(0xFFAD1457)),
+    ];
+    return Drawer(
+      child: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(20, 50, 20, 24),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF1A5DC8), Color(0xFF0D1B2A)],
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 48, height: 48,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(Icons.shield_rounded, color: Colors.white, size: 28),
+                ),
+                const SizedBox(height: 14),
+                const Text('Sentinel SVI',
+                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+                const Text('Sistema de Vigilancia Integral',
+                    style: TextStyle(color: Colors.white60, fontSize: 12)),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              children: allModules.map((mod) {
+                final isCurrent = mod.route == AppRoutes.cameraView;
+                return ListTile(
+                  leading: Container(
+                    width: 38, height: 38,
+                    decoration: BoxDecoration(
+                      color: isCurrent ? mod.color : mod.color.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(mod.icon, color: isCurrent ? Colors.white : mod.color, size: 20),
+                  ),
+                  title: Text(
+                    mod.label,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
+                      color: isCurrent ? _primaryBlue : _textColor,
+                    ),
+                  ),
+                  trailing: isCurrent
+                      ? Container(
+                          width: 6, height: 6,
+                          decoration: BoxDecoration(color: _primaryBlue, shape: BoxShape.circle),
+                        )
+                      : null,
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (!isCurrent) {
+                      Navigator.pushNamed(context, mod.route);
+                    }
+                  },
+                );
+              }).toList(),
+            ),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.logout_rounded, color: _dangerColor),
+            title: const Text('Cerrar sesión', style: TextStyle(color: _dangerColor, fontWeight: FontWeight.w600)),
+            onTap: () async {
+              Navigator.pop(context);
+              await SessionService.logout();
+              if (!context.mounted) return;
+              Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (_) => false);
+            },
+          ),
+          const SizedBox(height: 12),
         ],
       ),
     );
@@ -855,4 +965,12 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
       ),
     );
   }
+}
+
+class _ModuleItem {
+  final IconData icon;
+  final String label;
+  final String route;
+  final Color color;
+  const _ModuleItem(this.icon, this.label, this.route, this.color);
 }

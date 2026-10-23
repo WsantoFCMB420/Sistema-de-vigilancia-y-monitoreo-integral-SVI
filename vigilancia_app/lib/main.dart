@@ -118,7 +118,7 @@ class MyApp extends StatelessWidget {
       listenable: themeController,
       builder: (context, _) {
         return MaterialApp(
-          title: 'Sentinel Surveillance',
+          title: 'SVI',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.light,
           darkTheme: AppTheme.dark,

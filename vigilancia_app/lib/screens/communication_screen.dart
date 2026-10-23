@@ -1,8 +1,12 @@
 import 'dart:convert'; // para jsonDecode en _getCurrentUserId
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http; // para la petición a /api/user
 import '../services/api_service.dart';
 import '../main.dart'; // AppRoutes
+import '../widgets/theme_toggle_button.dart';
+import '../widgets/responsive.dart';
+import '../theme/app_colors.dart';
 
 class CommunicationScreen extends StatefulWidget {
   const CommunicationScreen({super.key});
@@ -13,14 +17,14 @@ class CommunicationScreen extends StatefulWidget {
 
 class _CommunicationScreenState extends State<CommunicationScreen> {
   // ── Paleta idéntica al proyecto ───────────────────────────────────────────
-  static const Color _bgColor = Color(0xFFDDE8F5);
   static const Color _primaryBlue = Color(0xFF1A5DC8);
-  static const Color _textColor = Color(0xFF1A2340);
-  static const Color _labelColor = Color(0xFF6B7A99);
   static const Color _dangerColor = Color(0xFFE53935);
-  static const Color _cardColor = Colors.white;
 
-  int _currentIndex = 3; // Índice para Comunicación (ajusta según tu lógica)
+  AppColors get _c => AppColors.of(context);
+  Color get _bgColor => _c.bg;
+  Color get _cardColor => _c.card;
+  Color get _textColor => _c.text;
+  Color get _labelColor => _c.label;
 
   final TextEditingController _msgCtrl = TextEditingController();
   final ScrollController _scrollCtrl = ScrollController();
@@ -28,12 +32,14 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
   List<_ChatMessage> _messages = [];
   bool _loading = true;
   int? _currentUserId;
+  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
-    _loadMessages();
+    _loadMessages(showLoader: true);
     _getCurrentUserId();
+    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) => _loadMessages(showLoader: false));
   }
 
   Future<void> _getCurrentUserId() async {
@@ -54,8 +60,10 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
     } catch (_) {}
   }
 
-  Future<void> _loadMessages() async {
-    setState(() => _loading = true);
+  Future<void> _loadMessages({bool showLoader = false}) async {
+    if (showLoader) {
+      setState(() => _loading = true);
+    }
     try {
       final rawMessages = await ApiService.getMessages();
       if (!mounted) return;
@@ -74,10 +82,12 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al cargar mensajes: $e'), backgroundColor: Colors.redAccent),
-      );
+      if (showLoader) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al cargar mensajes: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
     }
   }
 
@@ -113,6 +123,7 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
     _msgCtrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
@@ -122,28 +133,30 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _bgColor,
+      drawer: _buildDrawer(),
       body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: _buildTopBar(),
-            ),
-            _buildGroupHeader(),
-            _buildDayDivider('Hoy'),
-            Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator(color: _primaryBlue))
-                  : ListView.builder(
-                      controller: _scrollCtrl,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      itemCount: _messages.length,
-                      itemBuilder: (ctx, i) => _buildMessageItem(_messages[i]),
-                    ),
-            ),
-            _buildInputBar(),
-            _buildBottomNav(),
-          ],
+        child: ResponsiveShell(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: _buildTopBar(),
+              ),
+              _buildGroupHeader(),
+              _buildDayDivider('Hoy'),
+              Expanded(
+                child: _loading
+                    ? const Center(child: CircularProgressIndicator(color: _primaryBlue))
+                    : ListView.builder(
+                        controller: _scrollCtrl,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        itemCount: _messages.length,
+                        itemBuilder: (ctx, i) => _buildMessageItem(_messages[i]),
+                      ),
+              ),
+              _buildInputBar(),
+            ],
+          ),
         ),
       ),
     );
@@ -156,12 +169,14 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
       children: [
         Row(
           children: [
-            GestureDetector(
-              onTap: () => Navigator.maybePop(context),
-              child: Container(
-                width: 36, height: 36,
-                decoration: BoxDecoration(color: _primaryBlue.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-                child: Icon(Icons.arrow_back_rounded, color: _primaryBlue, size: 20),
+            Builder(
+              builder: (ctx) => GestureDetector(
+                onTap: () => Scaffold.of(ctx).openDrawer(),
+                child: Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(color: _primaryBlue.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                  child: const Icon(Icons.menu_rounded, color: _primaryBlue, size: 20),
+                ),
               ),
             ),
             const SizedBox(width: 10),
@@ -171,16 +186,124 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
               child: const Icon(Icons.shield_rounded, color: Colors.white, size: 18),
             ),
             const SizedBox(width: 8),
-            const Text('Comunicación',
+            Text('Comunicación',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _textColor)),
           ],
         ),
-        CircleAvatar(
-          radius: 18,
-          backgroundColor: _primaryBlue.withValues(alpha: 0.15),
-          child: const Icon(Icons.person_rounded, color: _primaryBlue, size: 20),
+        Row(
+          children: [
+            const ThemeToggleButton(),
+            const SizedBox(width: 4),
+            GestureDetector(
+              onTap: () => Navigator.pushNamed(context, AppRoutes.profile),
+              child: CircleAvatar(
+                radius: 18,
+                backgroundColor: _primaryBlue.withValues(alpha: 0.15),
+                child: const Icon(Icons.person_rounded, color: _primaryBlue, size: 20),
+              ),
+            ),
+          ],
         ),
       ],
+    );
+  }
+
+  Widget _buildDrawer() {
+    const allModules = [
+      _ModuleItem(Icons.dashboard_rounded, 'Dashboard', AppRoutes.dashboard, Color(0xFF1A5DC8)),
+      _ModuleItem(Icons.map_rounded, 'Mapa', AppRoutes.map, Color(0xFF00897B)),
+      _ModuleItem(Icons.videocam_rounded, 'Cámaras', AppRoutes.cameraView, Color(0xFF6D4C41)),
+      _ModuleItem(Icons.devices_rounded, 'Dispositivos', AppRoutes.devices, Color(0xFF5E35B1)),
+      _ModuleItem(Icons.warning_amber_rounded, 'Alertas', AppRoutes.alerts, Color(0xFFE53935)),
+      _ModuleItem(Icons.forum_rounded, 'Comunicación', AppRoutes.communication, Color(0xFF0288D1)),
+      _ModuleItem(Icons.psychology_rounded, 'IA Hub', AppRoutes.iaModule, Color(0xFF7B1FA2)),
+      _ModuleItem(Icons.assessment_rounded, 'Reportes', AppRoutes.reportes, Color(0xFF2E7D32)),
+      _ModuleItem(Icons.admin_panel_settings_rounded, 'Admin', AppRoutes.admin, Color(0xFFAD1457)),
+    ];
+    return Drawer(
+      child: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(20, 50, 20, 24),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF1A5DC8), Color(0xFF0D1B2A)],
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 48, height: 48,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(Icons.shield_rounded, color: Colors.white, size: 28),
+                ),
+                const SizedBox(height: 14),
+                const Text('Sentinel SVI',
+                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+                const Text('Sistema de Vigilancia Integral',
+                    style: TextStyle(color: Colors.white60, fontSize: 12)),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              children: allModules.map((mod) {
+                final isCurrent = mod.route == AppRoutes.communication;
+                return ListTile(
+                  leading: Container(
+                    width: 38, height: 38,
+                    decoration: BoxDecoration(
+                      color: isCurrent ? mod.color : mod.color.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(mod.icon, color: isCurrent ? Colors.white : mod.color, size: 20),
+                  ),
+                  title: Text(
+                    mod.label,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
+                      color: isCurrent ? _primaryBlue : _textColor,
+                    ),
+                  ),
+                  trailing: isCurrent
+                      ? Container(
+                          width: 6, height: 6,
+                          decoration: BoxDecoration(color: _primaryBlue, shape: BoxShape.circle),
+                        )
+                      : null,
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (!isCurrent) {
+                      Navigator.pushNamed(context, mod.route);
+                    }
+                  },
+                );
+              }).toList(),
+            ),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.logout_rounded, color: _dangerColor),
+            title: const Text('Cerrar sesión', style: TextStyle(color: _dangerColor, fontWeight: FontWeight.w600)),
+            onTap: () async {
+              Navigator.pop(context);
+              await SessionService.logout();
+              if (!context.mounted) return;
+              Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (_) => false);
+            },
+          ),
+          const SizedBox(height: 12),
+        ],
+      ),
     );
   }
 
@@ -208,21 +331,21 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Grupo de Seguridad Vecinal',
+                Text('Grupo de Seguridad Vecinal',
                     style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _textColor)),
                 const SizedBox(height: 3),
                 Row(
                   children: [
                     Container(width: 7, height: 7, decoration: const BoxDecoration(color: Color(0xFF43A047), shape: BoxShape.circle)),
                     const SizedBox(width: 5),
-                    const Text('12 vecinos activos', style: TextStyle(fontSize: 11, color: _labelColor)),
+                    Text('12 vecinos activos', style: TextStyle(fontSize: 11, color: _labelColor)),
                   ],
                 ),
               ],
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.more_vert_rounded, color: _labelColor, size: 20),
+            icon: Icon(Icons.more_vert_rounded, color: _labelColor, size: 20),
             onPressed: () {},
           ),
         ],
@@ -245,7 +368,7 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
                 color: const Color(0xFFBDCCE8).withValues(alpha: 0.4),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: Text(label, style: const TextStyle(fontSize: 11, color: _labelColor, fontWeight: FontWeight.w500)),
+              child: Text(label, style: TextStyle(fontSize: 11, color: _labelColor, fontWeight: FontWeight.w500)),
             ),
           ),
           const Expanded(child: Divider(color: Color(0xFFBDCCE8), thickness: 0.8)),
@@ -299,11 +422,11 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
                       BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 6, offset: const Offset(0, 2)),
                     ],
                   ),
-                  child: Text(msg.text, style: const TextStyle(fontSize: 13, color: _textColor, height: 1.4)),
+                  child: Text(msg.text, style: TextStyle(fontSize: 13, color: _textColor, height: 1.4)),
                 ),
                 Padding(
                   padding: const EdgeInsets.only(left: 4, top: 4),
-                  child: Text(msg.time, style: const TextStyle(fontSize: 10, color: _labelColor)),
+                  child: Text(msg.time, style: TextStyle(fontSize: 10, color: _labelColor)),
                 ),
               ],
             ),
@@ -348,7 +471,7 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(msg.time, style: const TextStyle(fontSize: 10, color: _labelColor)),
+                      Text(msg.time, style: TextStyle(fontSize: 10, color: _labelColor)),
                       const SizedBox(width: 4),
                       const Icon(Icons.done_all_rounded, size: 13, color: _primaryBlue),
                     ],
@@ -390,7 +513,7 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
             ],
           ),
           const SizedBox(height: 10),
-          const Text('Cámara de la puerta principal detectó actividad inusual. El equipo de vigilancia ha sido notificado.',
+          Text('Cámara de la puerta principal detectó actividad inusual. El equipo de vigilancia ha sido notificado.',
               style: TextStyle(fontSize: 12, color: _textColor, height: 1.4)),
           const SizedBox(height: 12),
           Row(
@@ -454,8 +577,8 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
               ),
               child: TextField(
                 controller: _msgCtrl,
-                style: const TextStyle(fontSize: 13, color: _textColor),
-                decoration: const InputDecoration(
+                style: TextStyle(fontSize: 13, color: _textColor),
+                decoration: InputDecoration(
                   hintText: 'Escribe un mensaje...',
                   hintStyle: TextStyle(fontSize: 13, color: _labelColor),
                   border: InputBorder.none,
@@ -490,60 +613,7 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
     );
   }
 
-  // ── Bottom Navigation ─────────────────────────────────────────────────────
-  Widget _buildBottomNav() {
-    final items = [
-      _NavItem(Icons.dashboard_rounded, 'Dashboard', AppRoutes.dashboard),
-      _NavItem(Icons.map_rounded, 'Mapa', AppRoutes.map),
-      _NavItem(Icons.videocam_rounded, 'Cámaras', AppRoutes.cameraView),
-      _NavItem(Icons.psychology_rounded, 'IA Hub', AppRoutes.iaModule),
-      _NavItem(Icons.admin_panel_settings_rounded, 'Admin', AppRoutes.admin),
-    ];
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 20, offset: const Offset(0, -4)),
-        ],
-      ),
-      child: SafeArea(
-        child: SizedBox(
-          height: 64,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: items.asMap().entries.map((entry) {
-              final i = entry.key;
-              final item = entry.value;
-              final selected = i == _currentIndex;
-              return GestureDetector(
-                onTap: () {
-                  if (i == _currentIndex) return;
-                  setState(() => _currentIndex = i);
-                  Navigator.pushNamed(context, item.route);
-                },
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(item.icon, color: selected ? _primaryBlue : const Color(0xFF9E9E9E), size: 24),
-                    const SizedBox(height: 4),
-                    Text(
-                      item.label,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                        color: selected ? _primaryBlue : const Color(0xFF9E9E9E),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 // ── Modelos ───────────────────────────────────────────────────────────────────
@@ -562,9 +632,10 @@ class _ChatMessage {
   });
 }
 
-class _NavItem {
+class _ModuleItem {
   final IconData icon;
   final String label;
   final String route;
-  _NavItem(this.icon, this.label, this.route);
+  final Color color;
+  const _ModuleItem(this.icon, this.label, this.route, this.color);
 }

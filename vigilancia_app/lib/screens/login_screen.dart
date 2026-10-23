@@ -4,6 +4,9 @@ import 'dart:io'; // Para SocketException
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../main.dart'; // SessionService y AppRoutes
+import '../widgets/responsive.dart';
+import '../widgets/theme_toggle_button.dart';
+import '../theme/app_colors.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -19,14 +22,8 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   bool _isLoading = false;
 
-  static const Color _bgColor = Color(0xFFDDE8F5);
+  AppColors get _c => AppColors.of(context);
   static const Color _primaryBlue = Color(0xFF1A5DC8);
-  static const Color _lightBlue = Color(0xFFEEF4FF);
-  static const Color _cardColor = Colors.white;
-  static const Color _labelColor = Color(0xFF6B7A99);
-  static const Color _textColor = Color(0xFF1A2340);
-  static const Color _hintColor = Color(0xFFADB8CC);
-  static const Color _borderColor = Color(0xFFD0DAEA);
 
   @override
   void dispose() {
@@ -120,31 +117,33 @@ class _LoginScreenState extends State<LoginScreen> {
         builder: (ctx, setDialogState) {
           bool loading = false;
           return AlertDialog(
+            backgroundColor: _c.card,
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: const Text(
+            title: Text(
               'Recuperar contraseña',
-              style: TextStyle(fontWeight: FontWeight.w700, color: _textColor),
+              style: TextStyle(fontWeight: FontWeight.w700, color: _c.text),
             ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
+                Text(
                   'Ingresa tu correo electrónico y te enviaremos un enlace para restablecer tu contraseña.',
-                  style: TextStyle(fontSize: 13, color: _labelColor),
+                  style: TextStyle(fontSize: 13, color: _c.label),
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: emailCtrl,
                   keyboardType: TextInputType.emailAddress,
+                  style: TextStyle(color: _c.text),
                   decoration: InputDecoration(
                     hintText: 'nombre@ejemplo.com',
-                    hintStyle: const TextStyle(color: _hintColor),
+                    hintStyle: TextStyle(color: _c.hint),
                     filled: true,
-                    fillColor: _lightBlue,
+                    fillColor: _c.input,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: _borderColor),
+                      borderSide: BorderSide(color: _c.border),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -163,8 +162,8 @@ class _LoginScreenState extends State<LoginScreen> {
             actions: [
               TextButton(
                 onPressed: loading ? null : () => Navigator.pop(ctx),
-                child: const Text('Cancelar',
-                    style: TextStyle(color: _labelColor)),
+                child: Text('Cancelar',
+                    style: TextStyle(color: _c.label)),
               ),
               ElevatedButton(
                 onPressed: loading
@@ -248,19 +247,28 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bgColor,
+      backgroundColor: _c.bg,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              _buildBrand(),
-              const SizedBox(height: 32),
-              _buildFormCard(),
-              const SizedBox(height: 24),
-              _buildBiometricOption(),
-            ],
+        child: ResponsiveShell(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: const [
+                    ThemeToggleButton(),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _buildBrand(),
+                const SizedBox(height: 32),
+                _buildFormCard(),
+                const SizedBox(height: 24),
+                _buildBiometricOption(),
+              ],
+            ),
           ),
         ),
       ),
@@ -290,7 +298,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         const SizedBox(height: 14),
         const Text(
-          'Sentinel Surveillance',
+          'SVI',
           style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w700,
@@ -298,10 +306,10 @@ class _LoginScreenState extends State<LoginScreen> {
               letterSpacing: 0.2),
         ),
         const SizedBox(height: 6),
-        const Text(
+        Text(
           'Protegiendo tu comunidad con inteligencia\ny vigilancia avanzada.',
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 13, color: _labelColor, height: 1.5),
+          style: TextStyle(fontSize: 13, color: _c.label, height: 1.5),
         ),
       ],
     );
@@ -309,58 +317,60 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // ── TARJETA FORMULARIO ────────────────────────────────────────
   Widget _buildFormCard() {
-    return Container(
-      decoration: BoxDecoration(
-        color: _cardColor,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 24,
-              offset: const Offset(0, 6)),
-        ],
-      ),
-      padding: const EdgeInsets.all(24),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Bienvenido',
-                style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    color: _textColor)),
-            const SizedBox(height: 4),
-            const Text('Ingrese sus credenciales para continuar',
-                style: TextStyle(fontSize: 13, color: _labelColor)),
-            const SizedBox(height: 24),
-            _buildLabel('CORREO ELECTRÓNICO'),
-            const SizedBox(height: 6),
-            _buildEmailField(),
-            const SizedBox(height: 18),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildLabel('CONTRASEÑA'),
-                GestureDetector(
-                  onTap:
-                      _showForgotPasswordDialog, // ← Ahora ejecuta la función
-                  child: const Text('¿Olvidó su contraseña?',
-                      style: TextStyle(
-                          fontSize: 12,
-                          color: _primaryBlue,
-                          fontWeight: FontWeight.w500)),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            _buildPasswordField(),
-            const SizedBox(height: 28),
-            _buildLoginButton(),
-            const SizedBox(height: 20),
-            _buildRegisterSection(),
+    return ResponsiveShell(
+      maxWidth: 440,
+      child: Container(
+        decoration: BoxDecoration(
+          color: _c.card,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 24,
+                offset: const Offset(0, 6)),
           ],
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Bienvenido',
+                  style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: _c.text)),
+              const SizedBox(height: 4),
+              Text('Ingrese sus credenciales para continuar',
+                  style: TextStyle(fontSize: 13, color: _c.label)),
+              const SizedBox(height: 24),
+              _buildLabel('CORREO ELECTRÓNICO'),
+              const SizedBox(height: 6),
+              _buildEmailField(),
+              const SizedBox(height: 18),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildLabel('CONTRASEÑA'),
+                  GestureDetector(
+                    onTap: _showForgotPasswordDialog,
+                    child: const Text('¿Olvidó su contraseña?',
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: _primaryBlue,
+                            fontWeight: FontWeight.w500)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              _buildPasswordField(),
+              const SizedBox(height: 28),
+              _buildLoginButton(),
+              const SizedBox(height: 20),
+              _buildRegisterSection(),
+            ],
+          ),
         ),
       ),
     );
@@ -368,10 +378,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Widget _buildLabel(String text) {
     return Text(text,
-        style: const TextStyle(
+        style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w600,
-            color: _labelColor,
+            color: _c.label,
             letterSpacing: 0.8));
   }
 
@@ -379,10 +389,10 @@ class _LoginScreenState extends State<LoginScreen> {
     return TextFormField(
       controller: _emailController,
       keyboardType: TextInputType.emailAddress,
-      style: const TextStyle(fontSize: 14, color: _textColor),
+      style: TextStyle(fontSize: 14, color: _c.text),
       decoration: _inputDecoration(
         hint: 'nombre@ejemplo.com',
-        suffix: const Icon(Icons.email_outlined, size: 18, color: _hintColor),
+        suffix: Icon(Icons.email_outlined, size: 18, color: _c.hint),
       ),
       validator: (v) {
         if (v == null || v.isEmpty) return 'Ingrese su correo';
@@ -397,7 +407,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return TextFormField(
       controller: _passwordController,
       obscureText: _obscurePassword,
-      style: const TextStyle(fontSize: 14, color: _textColor),
+      style: TextStyle(fontSize: 14, color: _c.text),
       decoration: _inputDecoration(
         hint: '••••••••',
         suffix: GestureDetector(
@@ -407,7 +417,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ? Icons.lock_outline_rounded
                 : Icons.lock_open_rounded,
             size: 18,
-            color: _hintColor,
+            color: _c.hint,
           ),
         ),
       ),
@@ -422,20 +432,20 @@ class _LoginScreenState extends State<LoginScreen> {
   InputDecoration _inputDecoration({required String hint, Widget? suffix}) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(color: _hintColor, fontSize: 14),
+      hintStyle: TextStyle(color: _c.hint, fontSize: 14),
       suffixIcon: suffix != null
           ? Padding(padding: const EdgeInsets.only(right: 12), child: suffix)
           : null,
       suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
       filled: true,
-      fillColor: _lightBlue,
+      fillColor: _c.input,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _borderColor)),
+          borderSide: BorderSide(color: _c.border)),
       enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _borderColor)),
+          borderSide: BorderSide(color: _c.border)),
       focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: _primaryBlue, width: 1.5)),
@@ -480,8 +490,8 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildRegisterSection() {
     return Column(
       children: [
-        const Text('¿No tiene una cuenta?',
-            style: TextStyle(fontSize: 13, color: _labelColor)),
+        Text('¿No tiene una cuenta?',
+            style: TextStyle(fontSize: 13, color: _c.label)),
         const SizedBox(height: 10),
         SizedBox(
           width: double.infinity,
@@ -508,7 +518,6 @@ class _LoginScreenState extends State<LoginScreen> {
       children: [
         GestureDetector(
           onTap: () {
-            // TODO: integrar local_auth
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Biométrico próximamente')),
             );
@@ -517,7 +526,7 @@ class _LoginScreenState extends State<LoginScreen> {
             width: 54,
             height: 54,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: _c.card,
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
@@ -531,10 +540,11 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
         const SizedBox(height: 8),
-        const Text('Ingreso Biométrico',
+        Text('Ingreso Biométrico',
             style: TextStyle(
-                fontSize: 12, color: _labelColor, fontWeight: FontWeight.w500)),
+                fontSize: 12, color: _c.label, fontWeight: FontWeight.w500)),
       ],
     );
   }
 }
+

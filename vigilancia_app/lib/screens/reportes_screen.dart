@@ -2,6 +2,9 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../main.dart';
 import '../services/api_service.dart';
+import '../widgets/theme_toggle_button.dart';
+import '../widgets/responsive.dart';
+import '../theme/app_colors.dart';
 
 class ReportesScreen extends StatefulWidget {
 const ReportesScreen({super.key});
@@ -12,15 +15,17 @@ State<ReportesScreen> createState() => _ReportesScreenState();
 class _ReportesScreenState extends State<ReportesScreen>
     with SingleTickerProviderStateMixin {
   // ── Colores ───────────────────────────────────────────────────
-static const Color _bg         = Color(0xFFF4F7FB);
 static const Color _blue       = Color(0xFF1A5DC8);
 static const Color _blueSoft   = Color(0xFFEEF4FF);
-static const Color _textDark   = Color(0xFF1A2340);
-static const Color _textGray   = Color(0xFF6B7A99);
-static const Color _card       = Colors.white;
 static const Color _danger     = Color(0xFFE53935);
 static const Color _success    = Color(0xFF16A34A);
 static const Color _aiDark     = Color(0xFF0F2057);
+
+AppColors get _c => AppColors.of(context);
+Color get _bg => _c.bg;
+Color get _card => _c.card;
+Color get _textDark => _c.text;
+Color get _textGray => _c.label;
 
 late AnimationController _lineController;
 late Animation<double> _lineAnim;
@@ -81,35 +86,36 @@ Widget build(BuildContext context) {
     backgroundColor: _bg,
     drawer: _buildDrawer(),
     body: SafeArea(
-        child: Column(
-        children: [
-            _buildTopBar(),
-            Expanded(
-            child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                    _buildHeader(),
-                    const SizedBox(height: 16),
-                    _buildStatsGrid(),
-                    const SizedBox(height: 16),
-                    _buildWeeklyChart(),
-                    const SizedBox(height: 16),
-                    _buildDailyBars(),
-                    const SizedBox(height: 16),
-                    _buildHeatmap(),
-                    const SizedBox(height: 16),
-                    _buildZonasAnalisis(),
-                    const SizedBox(height: 16),
-                    _buildAIInsight(),
-                    const SizedBox(height: 20),
-                ],
-                ),
-            ),
-            ),
-            _buildBottomNav(),
-        ],
+        child: ResponsiveShell(
+          child: Column(
+          children: [
+              _buildTopBar(),
+              Expanded(
+              child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                  child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                      _buildHeader(),
+                      const SizedBox(height: 16),
+                      _buildStatsGrid(),
+                      const SizedBox(height: 16),
+                      _buildWeeklyChart(),
+                      const SizedBox(height: 16),
+                      _buildDailyBars(),
+                      const SizedBox(height: 16),
+                      _buildHeatmap(),
+                      const SizedBox(height: 16),
+                      _buildZonasAnalisis(),
+                      const SizedBox(height: 16),
+                      _buildAIInsight(),
+                      const SizedBox(height: 20),
+                  ],
+                  ),
+              ),
+              ),
+          ],
+          ),
         ),
     ),
     );
@@ -122,18 +128,6 @@ Widget _buildTopBar() {
     color: _card,
     child: Row(
         children: [
-        GestureDetector(
-            onTap: () => Navigator.maybePop(context),
-            child: Container(
-            width: 36, height: 36,
-            decoration: BoxDecoration(
-                color: _blue.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(Icons.arrow_back_rounded, color: _blue, size: 20),
-            ),
-        ),
-        const SizedBox(width: 8),
         Builder(builder: (ctx) => GestureDetector(
             onTap: () => Scaffold.of(ctx).openDrawer(),
             child: Container(
@@ -152,13 +146,22 @@ Widget _buildTopBar() {
             child: const Icon(Icons.shield_rounded, color: Colors.white, size: 18),
         ),
         const SizedBox(width: 8),
-        const Text('Reportes',
+        Text('Reportes',
             style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _textDark)),
         const Spacer(),
-        CircleAvatar(
-            radius: 18,
-            backgroundColor: _blue.withValues(alpha: 0.15),
-            child: const Icon(Icons.person_rounded, color: _blue, size: 20),
+        Row(
+          children: [
+            const ThemeToggleButton(),
+            const SizedBox(width: 4),
+            GestureDetector(
+              onTap: () => Navigator.pushNamed(context, AppRoutes.profile),
+              child: CircleAvatar(
+                  radius: 18,
+                  backgroundColor: _blue.withValues(alpha: 0.15),
+                  child: const Icon(Icons.person_rounded, color: _blue, size: 20),
+              ),
+            ),
+          ],
         ),
         ],
     ),
@@ -240,13 +243,13 @@ Widget _buildHeader() {
     child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-        const Text('ANÁLISIS OPERATIVO',
+        Text('ANÁLISIS OPERATIVO',
             style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600,
                 color: _textGray, letterSpacing: 1.2)),
         const SizedBox(height: 6),
         Row(
             children: [
-            const Expanded(
+            Expanded(
                 child: Text('Reportes de\nVigilancia',
                     style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800,
                         color: _textDark, height: 1.2)),
@@ -290,7 +293,7 @@ Widget _buildStatsGrid() {
     physics: const NeverScrollableScrollPhysics(),
     crossAxisSpacing: 12,
     mainAxisSpacing: 12,
-    childAspectRatio: 1.55,
+    childAspectRatio: 2.2,
     children: [
         _statCard(
         label: 'INCIDENTES',
@@ -338,10 +341,12 @@ Widget _statCard({
     required Color iconColor,
     bool highlight = false,
 }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final highlightBg = isDark ? const Color(0xFF1E293B) : _blueSoft;
     return Container(
     padding: const EdgeInsets.all(14),
     decoration: BoxDecoration(
-        color: highlight ? _blueSoft : _card,
+        color: highlight ? highlightBg : _card,
         borderRadius: BorderRadius.circular(14),
         border: highlight ? Border.all(color: _blue.withValues(alpha: 0.2)) : null,
         boxShadow: [
@@ -357,12 +362,12 @@ Widget _statCard({
             Text(label,
                 style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600,
                     color: _textGray, letterSpacing: 0.8)),
-            Icon(icon, color: iconColor, size: 16),
+            Icon(icon, color: iconColor, size: 28),
             ],
         ),
         const Spacer(),
         Text(value,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _textDark)),
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _textDark)),
         const SizedBox(height: 2),
         Text(sub, style: TextStyle(fontSize: 10, color: subColor, fontWeight: FontWeight.w500)),
         ],
@@ -374,7 +379,7 @@ Widget _statCard({
 Widget _buildWeeklyChart() {
     return _chartCard(
     title: 'Actividad Semanal',
-    trailing: const Icon(Icons.more_vert_rounded, color: _textGray, size: 20),
+    trailing: Icon(Icons.more_vert_rounded, color: _textGray, size: 20),
     child: SizedBox(
         height: 130,
         child: AnimatedBuilder(
@@ -434,7 +439,7 @@ Widget _buildDailyBars() {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: _dailyLabels
                 .map((l) => Text(l,
-                    style: const TextStyle(fontSize: 8, color: _textGray)))
+                    style: TextStyle(fontSize: 8, color: _textGray)))
                 .toList(),
             ),
         ],
@@ -453,14 +458,14 @@ Widget _buildHeatmap() {
         children: [
         Row(
             children: [
-            const Text('Mapa de Calor: Zona A',
+            Text('Mapa de Calor: Zona A',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _textDark)),
             const Spacer(),
             _heatLegend(),
             ],
         ),
         const SizedBox(height: 4),
-        const Text('Concentración de incidentes por cuadrante',
+        Text('Concentración de incidentes por cuadrante',
             style: TextStyle(fontSize: 11, color: _textGray)),
         const SizedBox(height: 14),
           // Grid
@@ -487,7 +492,7 @@ Widget _buildHeatmap() {
             children: [
             const Icon(Icons.location_on_rounded, color: _blue, size: 16),
             const SizedBox(width: 4),
-            const Expanded(
+            Expanded(
                 child: Text('Campus Principal – Nivel 2',
                     style: TextStyle(fontSize: 12, color: _textGray)),
             ),
@@ -512,7 +517,7 @@ Widget _buildHeatmap() {
 Widget _heatLegend() {
     return Row(
     children: [
-        const Text('BAJO', style: TextStyle(fontSize: 9, color: _textGray)),
+        Text('BAJO', style: TextStyle(fontSize: 9, color: _textGray)),
         const SizedBox(width: 4),
         ...List.generate(5, (i) => Container(
         width: 14, height: 14,
@@ -523,7 +528,7 @@ Widget _heatLegend() {
         ),
         )),
         const SizedBox(width: 4),
-        const Text('ALTO', style: TextStyle(fontSize: 9, color: _textGray)),
+        Text('ALTO', style: TextStyle(fontSize: 9, color: _textGray)),
     ],
     );
 }
@@ -536,7 +541,7 @@ Widget _buildZonasAnalisis() {
     child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-        const Text('Análisis de Zonas Críticas',
+        Text('Análisis de Zonas Críticas',
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _textDark)),
         const SizedBox(height: 14),
         _zonaRow(
@@ -592,9 +597,9 @@ Widget _zonaRow({
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
                 Text(name,
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _textDark)),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _textDark)),
                 const SizedBox(height: 2),
-                Text(count, style: const TextStyle(fontSize: 11, color: _textGray)),
+                Text(count, style: TextStyle(fontSize: 11, color: _textGray)),
             ],
             ),
         ),
@@ -684,7 +689,7 @@ Widget _chartCard({required String title, required Widget child, Widget? trailin
         Row(
             children: [
             Text(title,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _textDark)),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _textDark)),
             const Spacer(),
             if (trailing != null) trailing,
             ],
@@ -695,56 +700,6 @@ Widget _chartCard({required String title, required Widget child, Widget? trailin
     ),
     );
 }
-
-  // ── BOTTOM NAV ────────────────────────────────────────────────
-Widget _buildBottomNav() {
-    const navItems = [
-    _NavEntry(Icons.dashboard_rounded,            'Dashboard', AppRoutes.dashboard),
-    _NavEntry(Icons.map_rounded,                  'Mapa',      AppRoutes.map),
-    _NavEntry(Icons.assessment_rounded,           'Reportes',  AppRoutes.reportes),
-    _NavEntry(Icons.psychology_rounded,           'IA Hub',    AppRoutes.iaModule),
-    _NavEntry(Icons.admin_panel_settings_rounded, 'Admin',     AppRoutes.admin),
-    ];
-    return Container(
-    decoration: BoxDecoration(
-        color: _card,
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 20, offset: const Offset(0, -4))],
-    ),
-    child: SafeArea(child: SizedBox(height: 64,
-        child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: List.generate(navItems.length, (i) {
-            final selected = i == 2; // Reportes = índice 2
-            final entry = navItems[i];
-            return GestureDetector(
-            onTap: () {
-                if (selected) return;
-                Navigator.pushNamed(context, entry.route);
-            },
-            child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                Icon(entry.icon, color: selected ? _blue : _textGray, size: 24),
-                const SizedBox(height: 4),
-                Text(entry.label, style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                    color: selected ? _blue : _textGray)),
-                ],
-            ),
-            );
-        }),
-        ),
-    )),
-    );
-}
-}
-
-class _NavEntry {
-  final IconData icon;
-  final String label;
-  final String route;
-  const _NavEntry(this.icon, this.label, this.route);
 }
 
 class _RepMod {
@@ -852,7 +807,7 @@ void paint(Canvas canvas, Size size) {
       final x = i / (labels.length - 1) * chartW;
     tp.text = TextSpan(
         text: labels[i],
-        style: const TextStyle(color: Color(0xFF6B7A99), fontSize: 9),
+        style: TextStyle(color: Color(0xFF6B7A99), fontSize: 9),
     );
     tp.layout();
     tp.paint(canvas, Offset(x - tp.width / 2, size.height - bottomPad + 6));

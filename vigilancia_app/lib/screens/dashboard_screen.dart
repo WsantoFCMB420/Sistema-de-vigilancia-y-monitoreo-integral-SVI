@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../main.dart'; // Para AppRoutes
+import '../widgets/theme_toggle_button.dart';
+import '../widgets/responsive.dart';
+import '../theme/app_colors.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -40,12 +43,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  static const Color _bgColor = Color(0xFFDDE8F5);
   static const Color _primaryBlue = Color(0xFF1A5DC8);
-  static const Color _cardColor = Colors.white;
-  static const Color _labelColor = Color(0xFF6B7A99);
-  static const Color _textColor = Color(0xFF1A2340);
   static const Color _dangerColor = Color(0xFFE53935);
+
+  AppColors get _c => AppColors.of(context);
+  Color get _bgColor => _c.bg;
+  Color get _cardColor => _c.card;
+  Color get _textColor => _c.text;
+  Color get _labelColor => _c.label;
 
   List<Map<String, dynamic>> _recentAlerts = [];
 
@@ -77,7 +82,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       children: [
                         const Icon(Icons.error_outline, size: 48, color: _dangerColor),
                         const SizedBox(height: 16),
-                        Text(_error!, style: const TextStyle(color: _labelColor)),
+                        Text(_error!, style: TextStyle(color: _labelColor)),
                         const SizedBox(height: 16),
                         ElevatedButton(
                           onPressed: loadDashboard,
@@ -90,23 +95,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 : RefreshIndicator(
                     onRefresh: loadDashboard,
                     child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildTopBar(),
-                          const SizedBox(height: 20),
-                          _buildStatsRow(),
-                          const SizedBox(height: 24),
-                          _buildModulesGrid(),
-                          const SizedBox(height: 24),
-                          _buildAlertsSection(),
-                          const SizedBox(height: 24),
-                          _buildLiveSection(),
-                          const SizedBox(height: 24),
-                          _buildMapSection(),
-                          const SizedBox(height: 100),
-                        ],
+                      child: ResponsiveShell(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildTopBar(),
+                            const SizedBox(height: 20),
+                            _buildStatsRow(),
+                            const SizedBox(height: 24),
+                            _buildModulesGrid(),
+                            const SizedBox(height: 24),
+                            _buildAlertsSection(),
+                            const SizedBox(height: 24),
+                            _buildLiveSection(),
+                            const SizedBox(height: 24),
+                            _buildMapSection(),
+                            const SizedBox(height: 100),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -134,21 +142,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
             const SizedBox(width: 10),
-            const Text('Sentinel Surveillance',
+            Text('SVI',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _textColor)),
           ],
         ),
         Row(
           children: [
-            IconButton(
-              icon: const Icon(Icons.logout_rounded, color: _dangerColor),
-              onPressed: () async {
-                await ApiService.logout();
-                await SessionService.logout();
-                if (!context.mounted) return;
-                Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (_) => false);
-              },
-            ),
+            const ThemeToggleButton(),
+            const SizedBox(width: 4),
             GestureDetector(
               onTap: () => Navigator.pushNamed(context, AppRoutes.profile),
               child: CircleAvatar(
@@ -305,13 +306,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label,
-              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: _labelColor, letterSpacing: 0.5)),
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: _labelColor, letterSpacing: 0.5)),
           const SizedBox(height: 8),
           Row(
             children: [
               Container(width: 8, height: 8, decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle)),
               const SizedBox(width: 8),
-              Text(value, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: _textColor)),
+              Text(value, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: _textColor)),
             ],
           ),
         ],
@@ -324,7 +325,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Acceso Rápido',
+        Text('Acceso Rápido',
             style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _textColor)),
         const SizedBox(height: 12),
         GridView.builder(
@@ -396,7 +397,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Alertas Recientes',
+            Text('Alertas Recientes',
                 style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _textColor)),
             GestureDetector(
               onTap: () => Navigator.pushNamed(context, AppRoutes.alerts),
@@ -440,8 +441,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildApiAlertCard(Map<String, dynamic> alert) {
     final priority = alert['priority'] ?? 'Media';
     final isDanger = priority == 'Crítica';
-    final cardBg   = isDanger ? const Color(0xFFFDECEC) : _cardColor;
-    final cardBorder = isDanger ? const Color(0xFFFFCDD2) : const Color(0xFFE4EAF5);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg   = isDanger ? (isDark ? const Color(0xFF2B1515) : const Color(0xFFFDECEC)) : _c.card;
+    final cardBorder = isDanger ? (isDark ? const Color(0xFF5A2525) : const Color(0xFFFFCDD2)) : _c.border;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
@@ -454,7 +456,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         Container(
           width: 40, height: 40,
           decoration: BoxDecoration(
-            color: isDanger ? const Color(0xFFFDECEC) : _primaryBlue.withValues(alpha: 0.08),
+            color: isDanger ? (isDark ? const Color(0xFF3B1C1C) : const Color(0xFFFDECEC)) : _primaryBlue.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(_alertIcon(alert['type'] ?? ''),
@@ -465,15 +467,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('${alert['type']} • ${alert['priority']}',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _textColor)),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _c.text)),
             const SizedBox(height: 3),
             Text(
               '${alert['location']?.isNotEmpty == true ? alert['location'] : 'Sin ubicación'} • ${alert['created_at']}',
-              style: const TextStyle(fontSize: 11, color: _labelColor),
+              style: TextStyle(fontSize: 11, color: _c.label),
             ),
           ],
         )),
-        const Icon(Icons.chevron_right_rounded, color: _labelColor, size: 20),
+        Icon(Icons.chevron_right_rounded, color: _c.label, size: 20),
       ]),
     );
   }
@@ -488,7 +490,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Vigilancia en Vivo',
+            Text('Vigilancia en Vivo',
                 style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _textColor)),
             GestureDetector(
               onTap: () => Navigator.pushNamed(context, AppRoutes.cameraView),
@@ -599,13 +601,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Container(
               height: 120,
               decoration: BoxDecoration(
-                color: const Color(0xFFE8F5E9),
+                color: _c.card,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFFC8E6C9)),
+                border: Border.all(color: _c.border),
               ),
               child: Stack(
                 children: [
-                  const Center(child: Icon(Icons.map_rounded, color: Color(0xFF81C784), size: 40)),
+                  Center(child: Icon(Icons.map_rounded, color: _c.label, size: 40)),
                   Positioned(
                     top: 30, left: 50,
                     child: Container(
@@ -617,7 +619,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     bottom: 10, left: 0, right: 0,
                     child: Center(
                       child: Text('Ver Mapa',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF2E7D32))),
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _c.text)),
                     ),
                   ),
                 ],
@@ -638,7 +640,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 borderRadius: BorderRadius.circular(14),
                 boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
               ),
-              child: const Column(
+              child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.psychology_rounded, color: _primaryBlue, size: 28),
@@ -687,7 +689,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Emitir Alerta',
+            Text('Emitir Alerta',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _textColor)),
             const SizedBox(height: 16),
             _alertTypeButton(Icons.warning_amber_rounded, 'Intrusión', _dangerColor),

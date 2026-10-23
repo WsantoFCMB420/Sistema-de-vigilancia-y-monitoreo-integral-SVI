@@ -8,15 +8,21 @@ use Illuminate\Http\Request;
 class DeviceController extends Controller
 {
     // ── GET /devices ───────────────────────────────────────────────
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(Device::latest()->get());
+        if ($request->user()->role === 'admin') {
+            return response()->json(Device::latest()->get());
+        }
+        return response()->json(Device::where('user_id', $request->user()->id)->latest()->get());
     }
 
     // ── GET /devices/{id} ─────────────────────────────────────────
-    public function show($id)
+    public function show(Request $request, $id)
     {
         $device = Device::findOrFail($id);
+        $error = $this->checkAccess($request, $device);
+        if ($error) return $error;
+
         return response()->json($device);
     }
 
@@ -49,6 +55,7 @@ class DeviceController extends Controller
 
         $validated['status'] = $validated['status'] ?? 'Activo';
         $validated['is_ptz'] = (bool) ($validated['is_ptz'] ?? false);
+        $validated['user_id'] = $request->user()->id;
 
         $device = Device::create($validated);
 
@@ -104,6 +111,8 @@ class DeviceController extends Controller
     public function update(Request $request, $id)
     {
         $device = Device::findOrFail($id);
+        $error = $this->checkAccess($request, $device);
+        if ($error) return $error;
 
         $validated = $request->validate([
             'title'       => 'sometimes|required|string|max:100',
@@ -131,6 +140,8 @@ class DeviceController extends Controller
     public function ptz(Request $request, $id)
     {
         $device = Device::findOrFail($id);
+        $error = $this->checkAccess($request, $device);
+        if ($error) return $error;
 
         $validated = $request->validate([
             'command' => 'required|string|in:up,down,left,right,zoom_in,zoom_out,stop',
@@ -152,13 +163,24 @@ class DeviceController extends Controller
     }
 
     // ── DELETE /devices/{id} ──────────────────────────────────────
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
         $device = Device::findOrFail($id);
+        $error = $this->checkAccess($request, $device);
+        if ($error) return $error;
+
         $device->delete();
 
         return response()->json([
             'message' => 'Dispositivo eliminado correctamente',
         ]);
+    }
+
+    private function checkAccess(Request $request, Device $device)
+    {
+        if ($request->user()->role !== 'admin' && $device->user_id && $device->user_id !== $request->user()->id) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+        return null;
     }
 }

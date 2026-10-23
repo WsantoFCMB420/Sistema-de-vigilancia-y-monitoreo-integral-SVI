@@ -84,6 +84,8 @@ class _DevicesScreenState extends State<DevicesScreen> {
     final streamUrlCtrl = TextEditingController();
     final ipCtrl        = TextEditingController();
     final portCtrl      = TextEditingController(text: '554');
+    final latCtrl       = TextEditingController(text: '4.7110');
+    final lngCtrl       = TextEditingController(text: '-74.0721');
     String selectedStatus = 'Activo';
     String selectedType   = 'camera';
     String cameraSource   = 'local';
@@ -311,6 +313,48 @@ class _DevicesScreenState extends State<DevicesScreen> {
                 ),
                 const SizedBox(height: 14),
 
+                // Coordenadas (Latitud / Longitud para el Mapa)
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('LATITUD',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
+                                  color: _c.label, letterSpacing: 0.8)),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: latCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                            style: TextStyle(fontSize: 13, color: _c.text),
+                            decoration: _inputDeco('4.7110'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('LONGITUD',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
+                                  color: _c.label, letterSpacing: 0.8)),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: lngCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                            style: TextStyle(fontSize: 13, color: _c.text),
+                            decoration: _inputDeco('-74.0721'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
                 // Estado
                 Text('ESTADO INICIAL',
                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
@@ -350,6 +394,8 @@ class _DevicesScreenState extends State<DevicesScreen> {
                       final location = subtitleCtrl.text.trim();
                       final streamUrl = streamUrlCtrl.text.trim();
                       final ip = ipCtrl.text.trim();
+                      final lat = double.tryParse(latCtrl.text.trim());
+                      final lng = double.tryParse(lngCtrl.text.trim());
                       final error = _validateNewDevice(
                         name: name,
                         location: location,
@@ -375,6 +421,8 @@ class _DevicesScreenState extends State<DevicesScreen> {
                           port: portParsed,
                           isPtz: isLocalCamera ? false : isPtz,
                           deviceType: selectedType,
+                          latitude: lat,
+                          longitude: lng,
                         );
                         if (!ctx.mounted) return;
                         Navigator.pop(ctx);
@@ -690,18 +738,6 @@ class _DevicesScreenState extends State<DevicesScreen> {
       children: [
         Row(
           children: [
-            GestureDetector(
-              onTap: () => Navigator.maybePop(context),
-              child: Container(
-                width: 36, height: 36,
-                decoration: BoxDecoration(
-                  color: _primaryBlue.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.arrow_back_rounded, color: _primaryBlue, size: 20),
-              ),
-            ),
-            const SizedBox(width: 8),
             Builder(
               builder: (ctx) => GestureDetector(
                 onTap: () => Scaffold.of(ctx).openDrawer(),

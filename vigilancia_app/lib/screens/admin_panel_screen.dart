@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../main.dart';
 import '../services/api_service.dart';
+import '../widgets/theme_toggle_button.dart';
+import '../widgets/responsive.dart';
+import '../theme/app_colors.dart';
 
 class AdminPanelScreen extends StatefulWidget {
   const AdminPanelScreen({super.key});
@@ -9,21 +12,25 @@ class AdminPanelScreen extends StatefulWidget {
 }
 
 class _AdminPanelScreenState extends State<AdminPanelScreen> {
-  static const Color _bg      = Color(0xFFDDE8F5);
+  AppColors get _c => AppColors.of(context);
+  Color get _bg      => _c.bg;
+  Color get _card    => _c.card;
+  Color get _text    => _c.text;
+  Color get _label   => _c.label;
+  Color get _input   => _c.input;
+  Color get _border  => _c.border;
+  Color get _sheet   => _c.sheet;
+
   static const Color _blue    = Color(0xFF1A5DC8);
-  static const Color _card    = Colors.white;
-  static const Color _label   = Color(0xFF6B7A99);
-  static const Color _text    = Color(0xFF1A2340);
   static const Color _danger  = Color(0xFFE53935);
   static const Color _success = Color(0xFF16A34A);
   static const Color _warn    = Color(0xFFF59E0B);
-
-  int _currentIndex = 4;
 
   List<Map<String, dynamic>> _users = [];
   bool _loadingUsers = true;
   String? _usersError;
   bool _isAdmin = false;
+  bool _checkingAdmin = true;
 
   static const List<_Mod> _mods = [
     _Mod(Icons.dashboard_rounded,            'Dashboard',    AppRoutes.dashboard,     Color(0xFF1A5DC8)),
@@ -45,7 +52,12 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
   Future<void> _init() async {
     _isAdmin = await SessionService.isAdmin();
-    await _loadUsers();
+    setState(() {
+      _checkingAdmin = false;
+    });
+    if (_isAdmin) {
+      await _loadUsers();
+    }
   }
 
   Future<void> _loadUsers() async {
@@ -66,32 +78,81 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_checkingAdmin) {
+      return Scaffold(
+        backgroundColor: _bg,
+        body: const Center(child: CircularProgressIndicator(color: Color(0xFF1A5DC8))),
+      );
+    }
+
+    if (!_isAdmin) {
+      return Scaffold(
+        backgroundColor: _bg,
+        body: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.lock_rounded, size: 64, color: Color(0xFFE53935)),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Acceso Denegado (Solo Administradores)',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _text),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'No tienes permisos para ver el panel de administración.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 13, color: _label),
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pushReplacementNamed(context, AppRoutes.dashboard),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1A5DC8),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('Volver al Dashboard', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: _bg,
       drawer: _buildDrawer(),
       body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: _topBar(),
-            ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildServerCards(),
-                    const SizedBox(height: 22),
-                    _buildGestionUsuarios(),
-                    const SizedBox(height: 20),
-                  ],
+        child: ResponsiveShell(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: _topBar(),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildServerCards(),
+                      const SizedBox(height: 22),
+                      _buildGestionUsuarios(),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            _buildBottomNav(),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -102,15 +163,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Row(children: [
-          GestureDetector(
-            onTap: () => Navigator.maybePop(context),
-            child: Container(
-              width: 36, height: 36,
-              decoration: BoxDecoration(color: _blue.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-              child: Icon(Icons.arrow_back_rounded, color: _blue, size: 20),
-            ),
-          ),
-          const SizedBox(width: 8),
           Builder(builder: (ctx) => GestureDetector(
             onTap: () => Scaffold.of(ctx).openDrawer(),
             child: Container(
@@ -124,12 +176,18 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             decoration: BoxDecoration(color: _blue, borderRadius: BorderRadius.circular(8)),
             child: const Icon(Icons.shield_rounded, color: Colors.white, size: 18)),
           const SizedBox(width: 8),
-          const Text('Panel Admin', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _text)),
+          Text('Panel Admin', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _text)),
         ]),
-        GestureDetector(
-          onTap: () => Navigator.pushNamed(context, AppRoutes.profile),
-          child: CircleAvatar(radius: 18, backgroundColor: _blue.withValues(alpha: 0.15),
-            child: const Icon(Icons.person_rounded, color: _blue, size: 20)),
+        Row(
+          children: [
+            const ThemeToggleButton(),
+            const SizedBox(width: 4),
+            GestureDetector(
+              onTap: () => Navigator.pushNamed(context, AppRoutes.profile),
+              child: CircleAvatar(radius: 18, backgroundColor: _blue.withValues(alpha: 0.15),
+                child: const Icon(Icons.person_rounded, color: _blue, size: 20)),
+            ),
+          ],
         ),
       ],
     );
@@ -137,6 +195,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
   Widget _buildDrawer() {
     return Drawer(
+      backgroundColor: _sheet,
       child: Column(children: [
         Container(
           width: double.infinity,
@@ -156,7 +215,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         ),
         Expanded(child: ListView(
           padding: const EdgeInsets.symmetric(vertical: 12),
-          children: _mods.map((mod) {
+          children: _mods.where((mod) => _isAdmin || mod.route != AppRoutes.admin).map((mod) {
             final isCurrent = mod.route == AppRoutes.admin;
             return ListTile(
               leading: Container(width: 38, height: 38,
@@ -174,7 +233,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             );
           }).toList(),
         )),
-        const Divider(height: 1),
+        Divider(height: 1, color: _border),
         ListTile(
           leading: const Icon(Icons.logout_rounded, color: _danger),
           title: const Text('Cerrar sesión', style: TextStyle(color: _danger, fontWeight: FontWeight.w600)),
@@ -212,9 +271,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
           child: Icon(icon, color: _blue, size: 20)),
         const SizedBox(width: 14),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: _label, letterSpacing: 0.7)),
+          Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: _label, letterSpacing: 0.7)),
           const SizedBox(height: 3),
-          Text(name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _text)),
+          Text(name, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _text)),
         ])),
         Row(children: [
           Container(width: 8, height: 8, decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle)),
@@ -230,7 +289,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Text('Gestión de Usuarios', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _text)),
+          Text('Gestión de Usuarios', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _text)),
           GestureDetector(
             onTap: _loadUsers,
             child: Container(
@@ -241,7 +300,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         ],
       ),
       const SizedBox(height: 4),
-      const Text('Administra accesos, roles y permisos del sistema.', style: TextStyle(fontSize: 12, color: _label)),
+      Text('Administra accesos, roles y permisos del sistema.', style: TextStyle(fontSize: 12, color: _label)),
       const SizedBox(height: 14),
 
       // ── Contenido condicional ─────────────────────────────────
@@ -304,9 +363,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             child: Text(initials, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: roleColor))),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(user['name'] ?? '', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _text)),
+            Text(user['name'] ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _text)),
             const SizedBox(height: 2),
-            Text(user['email'] ?? '', style: const TextStyle(fontSize: 11, color: _label)),
+            Text(user['email'] ?? '', style: TextStyle(fontSize: 11, color: _label)),
           ])),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -318,10 +377,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
           ),
         ]),
         const SizedBox(height: 10),
-        const Divider(height: 1, color: Color(0xFFF0F0F0)),
+        Divider(height: 1, color: _border),
         const SizedBox(height: 8),
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text(user['created_at'] ?? '', style: const TextStyle(fontSize: 10, color: _label)),
+          Text(user['created_at'] ?? '', style: TextStyle(fontSize: 10, color: _label)),
           Row(children: [
             if (_isAdmin) ...[
               GestureDetector(
@@ -332,7 +391,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                 onTap: () => _confirmDelete(user, index),
                 child: const Text('Eliminar', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _danger))),
             ] else
-              const Text('Sin permisos', style: TextStyle(fontSize: 11, color: _label)),
+              Text('Sin permisos', style: TextStyle(fontSize: 11, color: _label)),
           ]),
         ]),
       ]),
@@ -344,16 +403,17 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     showDialog(
       context: context,
       builder: (_) => StatefulBuilder(builder: (ctx, setS) => AlertDialog(
+        backgroundColor: _card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text('Rol de ${user['name']}',
-            style: const TextStyle(fontWeight: FontWeight.w700, color: _text, fontSize: 15)),
+            style: TextStyle(fontWeight: FontWeight.w700, color: _text, fontSize: 15)),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           _roleOption(ctx, setS, 'admin',    'Administrador',  Icons.admin_panel_settings_rounded, _blue,    selectedRole, (v) => selectedRole = v),
           _roleOption(ctx, setS, 'operator', 'Operador',       Icons.work_rounded,                 _warn,    selectedRole, (v) => selectedRole = v),
           _roleOption(ctx, setS, 'viewer',   'Visitante',      Icons.visibility_rounded,           _label,   selectedRole, (v) => selectedRole = v),
         ]),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar', style: TextStyle(color: _label))),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancelar', style: TextStyle(color: _label))),
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(ctx);
@@ -375,9 +435,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: isSel ? color.withValues(alpha: 0.1) : const Color(0xFFF8FAFF),
+          color: isSel ? color.withValues(alpha: 0.1) : _input,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: isSel ? color : Colors.transparent, width: 1.5)),
+          border: Border.all(color: isSel ? color : _border, width: 1.5)),
         child: Row(children: [
           Icon(icon, color: isSel ? color : _label, size: 20),
           const SizedBox(width: 10),
@@ -410,11 +470,12 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
   void _confirmDelete(Map<String, dynamic> user, int index) {
     showDialog(context: context, builder: (_) => AlertDialog(
+      backgroundColor: _card,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: const Text('Confirmar eliminación', style: TextStyle(fontWeight: FontWeight.w700, color: _text)),
-      content: Text('¿Deseas eliminar a ${user['name']}? Esta acción no se puede deshacer.', style: const TextStyle(color: _label)),
+      title: Text('Confirmar eliminación', style: TextStyle(fontWeight: FontWeight.w700, color: _text)),
+      content: Text('¿Deseas eliminar a ${user['name']}? Esta acción no se puede deshacer.', style: TextStyle(color: _label)),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar', style: TextStyle(color: _label))),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text('Cancelar', style: TextStyle(color: _label))),
         ElevatedButton(
           onPressed: () async {
             Navigator.pop(context);
@@ -443,48 +504,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       ));
     }
   }
-
-  Widget _buildBottomNav() {
-    final items = [
-      _Nav(Icons.dashboard_rounded,            'Dashboard', AppRoutes.dashboard),
-      _Nav(Icons.map_rounded,                  'Mapa',      AppRoutes.map),
-      _Nav(Icons.devices_rounded,              'Devices',   AppRoutes.devices),
-      _Nav(Icons.psychology_rounded,           'IA Hub',    AppRoutes.iaModule),
-      _Nav(Icons.admin_panel_settings_rounded, 'Admin',     AppRoutes.admin),
-    ];
-    return Container(
-      decoration: BoxDecoration(color: _card,
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 20, offset: const Offset(0, -4))]),
-      child: SafeArea(child: SizedBox(height: 64,
-        child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: items.asMap().entries.map((e) {
-            final sel = e.key == _currentIndex;
-            return GestureDetector(
-              onTap: () {
-                if (e.key == _currentIndex) return;
-                setState(() => _currentIndex = e.key);
-                Navigator.pushNamed(context, e.value.route);
-              },
-              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Icon(e.value.icon, color: sel ? _blue : const Color(0xFF9E9E9E), size: 24),
-                const SizedBox(height: 4),
-                Text(e.value.label, style: TextStyle(fontSize: 10,
-                  fontWeight: sel ? FontWeight.w600 : FontWeight.w400,
-                  color: sel ? _blue : const Color(0xFF9E9E9E))),
-              ]),
-            );
-          }).toList()),
-      )),
-    );
-  }
 }
 
 class _Mod {
   final IconData icon; final String label; final String route; final Color color;
   const _Mod(this.icon, this.label, this.route, this.color);
-}
-
-class _Nav {
-  final IconData icon; final String label; final String route;
-  _Nav(this.icon, this.label, this.route);
 }

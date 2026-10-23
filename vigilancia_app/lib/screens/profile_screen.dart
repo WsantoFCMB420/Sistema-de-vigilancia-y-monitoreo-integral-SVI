@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../main.dart';
 import '../services/api_service.dart';
+import '../widgets/theme_toggle_button.dart';
+import '../widgets/responsive.dart';
+import '../theme/app_colors.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -9,11 +12,15 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  static const Color _bg    = Color(0xFFDDE8F5);
+  AppColors get _c => AppColors.of(context);
+  Color get _bg    => _c.bg;
+  Color get _card  => _c.card;
+  Color get _label => _c.label;
+  Color get _text  => _c.text;
+  Color get _input => _c.input;
+  Color get _border => _c.border;
+
   static const Color _blue  = Color(0xFF1A5DC8);
-  static const Color _card  = Colors.white;
-  static const Color _label = Color(0xFF6B7A99);
-  static const Color _text  = Color(0xFF1A2340);
   static const Color _danger= Color(0xFFE53935);
 
   Map<String, dynamic>? _profile;
@@ -111,17 +118,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       backgroundColor: _bg,
       body: SafeArea(
-        child: Column(
-          children: [
-            _topBar(),
-            Expanded(
-              child: _loading
-                ? const Center(child: CircularProgressIndicator(color: _blue))
-                : _error != null
-                  ? _buildError()
-                  : _buildContent(),
-            ),
-          ],
+        child: ResponsiveShell(
+          maxWidth: 700,
+          child: Column(
+            children: [
+              _topBar(),
+              Expanded(
+                child: _loading
+                  ? const Center(child: CircularProgressIndicator(color: _blue))
+                  : _error != null
+                    ? _buildError()
+                    : _buildContent(),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -141,14 +151,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Icon(Icons.arrow_back_rounded, color: _blue, size: 20),
             ),
           ),
-          const Text('Mi Perfil', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _text)),
-          GestureDetector(
-            onTap: () => setState(() { _editing = !_editing; if (!_editing) _loadProfile(); }),
-            child: Container(
-              width: 36, height: 36,
-              decoration: BoxDecoration(color: _blue.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-              child: Icon(_editing ? Icons.close_rounded : Icons.edit_rounded, color: _blue, size: 18),
-            ),
+          Text('Mi Perfil', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _text)),
+          Row(
+            children: [
+              const ThemeToggleButton(),
+              const SizedBox(width: 4),
+              GestureDetector(
+                onTap: () => setState(() { _editing = !_editing; if (!_editing) _loadProfile(); }),
+                child: Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(color: _blue.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                  child: Icon(_editing ? Icons.close_rounded : Icons.edit_rounded, color: _blue, size: 18),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -182,8 +198,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(20),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 16, offset: const Offset(0, 4))]),
+          decoration: BoxDecoration(
+            color: _card,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: _c.isDark ? const Color(0x4D000000) : const Color(0x0D000000),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
           child: Column(children: [
             Stack(children: [
               CircleAvatar(
@@ -196,11 +221,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Container(
                   width: 28, height: 28,
                   decoration: BoxDecoration(color: _blue, shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2)),
+                    border: Border.fromBorderSide(BorderSide(color: _card, width: 2))),
                   child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 14))),
             ]),
             const SizedBox(height: 14),
-            Text(p['name'] ?? '', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _text)),
+            Text(p['name'] ?? '', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _text)),
             const SizedBox(height: 4),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -218,16 +243,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
         // ── Campos ───────────────────────────────────────────────
         Container(
           padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(16),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 3))]),
+          decoration: BoxDecoration(
+            color: _card,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: _c.isDark ? const Color(0x33000000) : const Color(0x0A000000),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
           child: Column(children: [
             _buildInfoRow(Icons.person_rounded, 'NOMBRE COMPLETO', _editing
               ? _buildEditField(_nameCtrl, 'Tu nombre')
-              : Text(p['name'] ?? '–', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _text))),
-            const Divider(height: 24, color: Color(0xFFF0F0F0)),
+              : Text(p['name'] ?? '–', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _text))),
+            Divider(height: 24, color: _border),
             _buildInfoRow(Icons.email_rounded, 'CORREO ELECTRÓNICO',
-              Text(p['email'] ?? '–', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _text))),
-            const Divider(height: 24, color: Color(0xFFF0F0F0)),
+              Text(p['email'] ?? '–', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _text))),
+            Divider(height: 24, color: _border),
             _buildInfoRow(Icons.phone_rounded, 'TELÉFONO', _editing
               ? _buildEditField(_phoneCtrl, '+57 300 000 0000')
               : Text(p['phone'] ?? 'No registrado', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: p['phone'] != null ? _text : _label))),
@@ -282,7 +316,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Icon(icon, color: _blue, size: 18)),
       const SizedBox(width: 14),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: _label, letterSpacing: 0.8)),
+        Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: _label, letterSpacing: 0.8)),
         const SizedBox(height: 4),
         content,
       ])),
@@ -292,16 +326,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildEditField(TextEditingController ctrl, String hint) {
     return TextField(
       controller: ctrl,
-      style: const TextStyle(fontSize: 14, color: _text),
+      style: TextStyle(fontSize: 14, color: _text),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: _label, fontSize: 13),
+        hintStyle: TextStyle(color: _c.hint, fontSize: 13),
         filled: true,
-        fillColor: const Color(0xFFEEF4FF),
+        fillColor: _input,
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFD0DAEA))),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: _border)),
         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _blue, width: 1.5)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFD0DAEA))),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: _border)),
       ),
     );
   }

@@ -32,7 +32,7 @@ class ResponsiveShell extends StatelessWidget {
   const ResponsiveShell({
     super.key,
     required this.child,
-    this.maxWidth = 1180,
+    this.maxWidth = 1380,
   });
 
   @override

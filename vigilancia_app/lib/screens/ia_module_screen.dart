@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../main.dart'; // AppRoutes
+import '../widgets/theme_toggle_button.dart';
+import '../widgets/responsive.dart';
+import '../theme/app_colors.dart';
 
 class IAModuleScreen extends StatefulWidget {
 const IAModuleScreen({super.key});
@@ -13,15 +16,17 @@ State<IAModuleScreen> createState() => _IAModuleScreenState();
 class _IAModuleScreenState extends State<IAModuleScreen>
     with TickerProviderStateMixin {
   // ── Colores ───────────────────────────────────────────────────
-static const Color _bg = Color(0xFFF4F7FB);
 static const Color _primaryBlue = Color(0xFF1A5DC8);
 static const Color _danger = Color(0xFFE53935);
 static const Color _warning = Color(0xFFFF8C00);
 static const Color _purple = Color(0xFF7C3AED);
-static const Color _textDark = Color(0xFF1A2340);
-static const Color _textGray = Color(0xFF6B7A99);
-static const Color _cardBg = Colors.white;
 static const Color _liveBadge = Color(0xFF16A34A);
+
+AppColors get _c => AppColors.of(context);
+Color get _bg => _c.bg;
+Color get _cardBg => _c.card;
+Color get _textDark => _c.text;
+Color get _textGray => _c.label;
 
   // ── Estado ────────────────────────────────────────────────────
 bool _iaActive = true;
@@ -109,32 +114,34 @@ void dispose() {
 Widget build(BuildContext context) {
     return Scaffold(
     backgroundColor: _bg,
+    drawer: _buildDrawer(),
     body: SafeArea(
-        child: Column(
-        children: [
-            _buildTopBar(),
-            Expanded(
-            child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                    _buildHeader(),
-                    const SizedBox(height: 16),
-                    _buildCameraFeed(),
-                    const SizedBox(height: 20),
-                    _buildEventosRecientes(),
-                    const SizedBox(height: 20),
-                    _buildNetworkCard(),
-                    const SizedBox(height: 16),
-                    _buildActionButtons(),
-                    const SizedBox(height: 20),
-                ],
-                ),
-            ),
-            ),
-            _buildBottomNav(),
-        ],
+        child: ResponsiveShell(
+          child: Column(
+          children: [
+              _buildTopBar(),
+              Expanded(
+              child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                  child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                      _buildHeader(),
+                      const SizedBox(height: 16),
+                      _buildCameraFeed(),
+                      const SizedBox(height: 20),
+                      _buildEventosRecientes(),
+                      const SizedBox(height: 20),
+                      _buildNetworkCard(),
+                      const SizedBox(height: 16),
+                      _buildActionButtons(),
+                      const SizedBox(height: 20),
+                  ],
+                  ),
+              ),
+              ),
+          ],
+          ),
         ),
     ),
     );
@@ -147,17 +154,17 @@ Widget _buildTopBar() {
     color: _cardBg,
     child: Row(
         children: [
-        GestureDetector(
-            onTap: () => Navigator.maybePop(context),
+        Builder(builder: (ctx) => GestureDetector(
+            onTap: () => Scaffold.of(ctx).openDrawer(),
             child: Container(
             width: 36, height: 36,
             decoration: BoxDecoration(
                 color: _primaryBlue.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(Icons.arrow_back_rounded, color: _primaryBlue, size: 20),
+            child: Icon(Icons.menu_rounded, color: _primaryBlue, size: 20),
             ),
-        ),
+        )),
         const SizedBox(width: 10),
         Container(
             width: 32,
@@ -169,7 +176,7 @@ Widget _buildTopBar() {
             child: const Icon(Icons.shield_rounded, color: Colors.white, size: 18),
         ),
         const SizedBox(width: 8),
-        const Text(
+        Text(
             'IA Hub',
             style: TextStyle(
             fontSize: 15,
@@ -178,15 +185,123 @@ Widget _buildTopBar() {
             ),
         ),
         const Spacer(),
-        CircleAvatar(
-            radius: 18,
-            backgroundColor: _primaryBlue.withValues(alpha: 0.15),
-            child: const Icon(Icons.person_rounded, color: _primaryBlue, size: 20),
+        Row(
+          children: [
+            const ThemeToggleButton(),
+            const SizedBox(width: 4),
+            GestureDetector(
+              onTap: () => Navigator.pushNamed(context, AppRoutes.profile),
+              child: CircleAvatar(
+                  radius: 18,
+                  backgroundColor: _primaryBlue.withValues(alpha: 0.15),
+                  child: const Icon(Icons.person_rounded, color: _primaryBlue, size: 20),
+              ),
+            ),
+          ],
         ),
         ],
     ),
     );
 }
+
+Widget _buildDrawer() {
+    const allModules = [
+      _ModuleItem(Icons.dashboard_rounded, 'Dashboard', AppRoutes.dashboard, Color(0xFF1A5DC8)),
+      _ModuleItem(Icons.map_rounded, 'Mapa', AppRoutes.map, Color(0xFF00897B)),
+      _ModuleItem(Icons.videocam_rounded, 'Cámaras', AppRoutes.cameraView, Color(0xFF6D4C41)),
+      _ModuleItem(Icons.devices_rounded, 'Dispositivos', AppRoutes.devices, Color(0xFF5E35B1)),
+      _ModuleItem(Icons.warning_amber_rounded, 'Alertas', AppRoutes.alerts, Color(0xFFE53935)),
+      _ModuleItem(Icons.forum_rounded, 'Comunicación', AppRoutes.communication, Color(0xFF0288D1)),
+      _ModuleItem(Icons.psychology_rounded, 'IA Hub', AppRoutes.iaModule, Color(0xFF7B1FA2)),
+      _ModuleItem(Icons.assessment_rounded, 'Reportes', AppRoutes.reportes, Color(0xFF2E7D32)),
+      _ModuleItem(Icons.admin_panel_settings_rounded, 'Admin', AppRoutes.admin, Color(0xFFAD1457)),
+    ];
+    return Drawer(
+      child: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(20, 50, 20, 24),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF1A5DC8), Color(0xFF0D1B2A)],
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 48, height: 48,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(Icons.shield_rounded, color: Colors.white, size: 28),
+                ),
+                const SizedBox(height: 14),
+                const Text('Sentinel SVI',
+                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+                const Text('Sistema de Vigilancia Integral',
+                    style: TextStyle(color: Colors.white60, fontSize: 12)),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              children: allModules.map((mod) {
+                final isCurrent = mod.route == AppRoutes.iaModule;
+                return ListTile(
+                  leading: Container(
+                    width: 38, height: 38,
+                    decoration: BoxDecoration(
+                      color: isCurrent ? mod.color : mod.color.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(mod.icon, color: isCurrent ? Colors.white : mod.color, size: 20),
+                  ),
+                  title: Text(
+                    mod.label,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
+                      color: isCurrent ? _primaryBlue : _textDark,
+                    ),
+                  ),
+                  trailing: isCurrent
+                      ? Container(
+                          width: 6, height: 6,
+                          decoration: BoxDecoration(color: _primaryBlue, shape: BoxShape.circle),
+                        )
+                      : null,
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (!isCurrent) {
+                      Navigator.pushNamed(context, mod.route);
+                    }
+                  },
+                );
+              }).toList(),
+            ),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.logout_rounded, color: _danger),
+            title: const Text('Cerrar sesión', style: TextStyle(color: _danger, fontWeight: FontWeight.w600)),
+            onTap: () async {
+              Navigator.pop(context);
+              await SessionService.logout();
+              if (!context.mounted) return;
+              Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (_) => false);
+            },
+          ),
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
 
   // ── HEADER ────────────────────────────────────────────────────
 Widget _buildHeader() {
@@ -198,7 +313,7 @@ Widget _buildHeader() {
             child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-                const Text(
+                Text(
                 'Módulo de IA',
                 style: TextStyle(
                     fontSize: 22,
@@ -207,7 +322,7 @@ Widget _buildHeader() {
                 ),
                 ),
                 const SizedBox(height: 4),
-                const Text(
+                Text(
                 'Análisis de comportamiento en tiempo real\ny detección de amenazas.',
                 style: TextStyle(fontSize: 12, color: _textGray, height: 1.4),
                 ),
@@ -448,7 +563,7 @@ Widget _buildEventosRecientes() {
         Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-            const Text(
+            Text(
             'Eventos Recientes',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _textDark),
             ),
@@ -504,7 +619,7 @@ Widget _buildEventCard(Map<String, dynamic> e) {
                     Expanded(
                     child: Text(
                         e['title'],
-                        style: const TextStyle(
+                        style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
                         color: _textDark,
@@ -513,20 +628,20 @@ Widget _buildEventCard(Map<String, dynamic> e) {
                     ),
                     Text(
                     e['time'],
-                    style: const TextStyle(fontSize: 11, color: _textGray),
+                    style: TextStyle(fontSize: 11, color: _textGray),
                     ),
                 ],
                 ),
                 const SizedBox(height: 3),
                 Text(
                 e['desc'],
-                style: const TextStyle(fontSize: 11, color: _textGray, height: 1.3),
+                style: TextStyle(fontSize: 11, color: _textGray, height: 1.3),
                 ),
             ],
             ),
         ),
         const SizedBox(width: 8),
-        const Icon(Icons.chevron_right_rounded, color: _textGray, size: 20),
+        Icon(Icons.chevron_right_rounded, color: _textGray, size: 20),
         ],
     ),
     );
@@ -546,7 +661,7 @@ Widget _buildNetworkCard() {
     child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-        const Text(
+        Text(
             'Carga de Red IA',
             style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _textDark),
         ),
@@ -555,7 +670,7 @@ Widget _buildNetworkCard() {
         const SizedBox(height: 14),
         Row(
             children: [
-            const Text(
+            Text(
                 'PRECISIÓN',
                 style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _textGray, letterSpacing: 0.8),
             ),
@@ -615,7 +730,7 @@ Widget _buildBarChart() {
                 ),
             ),
             const SizedBox(height: 4),
-            Text(labels[i], style: const TextStyle(fontSize: 10, color: _textGray)),
+            Text(labels[i], style: TextStyle(fontSize: 10, color: _textGray)),
             ],
         );
         }),
@@ -680,86 +795,13 @@ Widget _buildActionButtons() {
     );
 }
 
-  // ── BOTTOM NAV ────────────────────────────────────────────────
-Widget _buildBottomNav() {
-    const navItems = [
-    _NavEntry(Icons.grid_view_rounded, 'Dashboard', AppRoutes.dashboard),
-    _NavEntry(Icons.map_rounded, 'Mapa', AppRoutes.map),
-    _NavEntry(Icons.videocam_rounded, 'Cámaras', AppRoutes.cameraView),
-    _NavEntry(Icons.psychology_rounded, 'IA Hub', AppRoutes.iaModule),
-    _NavEntry(Icons.admin_panel_settings_rounded, 'Admin', AppRoutes.admin),
-    ];
 
-    return Container(
-    padding: const EdgeInsets.symmetric(vertical: 10),
-    decoration: BoxDecoration(
-        color: _cardBg,
-        boxShadow: [
-        BoxShadow(color: Colors.black.withValues(alpha: 0.07), blurRadius: 10, offset: const Offset(0, -2)),
-        ],
-    ),
-    child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: List.generate(navItems.length, (i) {
-        final selected = i == _selectedNav;
-        final entry = navItems[i];
-        return GestureDetector(
-            onTap: () {
-            if (i == _selectedNav) return;
-            setState(() => _selectedNav = i);
-            Navigator.pushNamed(context, entry.route);
-            },
-            child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-                Stack(
-                clipBehavior: Clip.none,
-                children: [
-                    Icon(
-                    entry.icon,
-                    color: selected ? _primaryBlue : _textGray,
-                    size: 24,
-                    ),
-                    if (i == 3)
-                    Positioned(
-                        top: -4,
-                        right: -6,
-                        child: Container(
-                        width: 14,
-                        height: 14,
-                        decoration: BoxDecoration(
-                            color: _danger,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 1.5),
-                        ),
-                        child: const Center(
-                            child: Text('3', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w700)),
-                        ),
-                        ),
-                    ),
-                ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                entry.label,
-                style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                    color: selected ? _primaryBlue : _textGray,
-                ),
-                ),
-            ],
-            ),
-        );
-        }),
-    ),
-    );
-}
 }
 
-class _NavEntry {
+class _ModuleItem {
   final IconData icon;
   final String label;
   final String route;
-  const _NavEntry(this.icon, this.label, this.route);
+  final Color color;
+  const _ModuleItem(this.icon, this.label, this.route, this.color);
 }

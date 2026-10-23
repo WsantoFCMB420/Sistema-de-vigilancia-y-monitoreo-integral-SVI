@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../main.dart'; // Para AppRoutes
+import '../widgets/theme_toggle_button.dart';
+import '../widgets/responsive.dart';
+import '../theme/app_colors.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -10,15 +13,15 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  int _currentIndex = 1;
-
-  static const Color _bgColor = Color(0xFFDDE8F5);
   static const Color _primaryBlue = Color(0xFF1A5DC8);
-  static const Color _cardColor = Colors.white;
-  static const Color _labelColor = Color(0xFF6B7A99);
-  static const Color _textColor = Color(0xFF1A2340);
   static const Color _dangerColor = Color(0xFFE53935);
   static const Color _successColor = Color(0xFF43A047);
+
+  AppColors get _c => AppColors.of(context);
+  Color get _bgColor => _c.bg;
+  Color get _cardColor => _c.card;
+  Color get _textColor => _c.text;
+  Color get _labelColor => _c.label;
 
   List<_MapNode> _nodes = [];
   bool _loading = true;
@@ -72,29 +75,30 @@ class _MapScreenState extends State<MapScreen> {
     return Scaffold(
       backgroundColor: _bgColor,
       body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: _buildTopBar(),
-            ),
-            Expanded(
-              child: Stack(
-                children: [
-                  _buildMap(),
-                  Positioned(top: 12, left: 16, child: _buildStatusCard()),
-                  Positioned(top: 12, right: 16, child: _buildMapControls()),
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    child: _buildBottomPanel(),
-                  ),
-                ],
+        child: ResponsiveShell(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: _buildTopBar(),
               ),
-            ),
-            _buildBottomNav(),
-          ],
+              Expanded(
+                child: Stack(
+                  children: [
+                    _buildMap(),
+                    Positioned(top: 12, left: 16, child: _buildStatusCard()),
+                    Positioned(top: 12, right: 16, child: _buildMapControls()),
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: _buildBottomPanel(),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -121,14 +125,23 @@ class _MapScreenState extends State<MapScreen> {
               child: const Icon(Icons.shield_rounded, color: Colors.white, size: 18),
             ),
             const SizedBox(width: 8),
-            const Text('Mapa de Red',
+            Text('Mapa de Red',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _textColor)),
           ],
         ),
-        CircleAvatar(
-          radius: 18,
-          backgroundColor: _primaryBlue.withValues(alpha: 0.15),
-          child: const Icon(Icons.person_rounded, color: _primaryBlue, size: 20),
+        Row(
+          children: [
+            const ThemeToggleButton(),
+            const SizedBox(width: 4),
+            GestureDetector(
+              onTap: () => Navigator.pushNamed(context, AppRoutes.profile),
+              child: CircleAvatar(
+                radius: 18,
+                backgroundColor: _primaryBlue.withValues(alpha: 0.15),
+                child: const Icon(Icons.person_rounded, color: _primaryBlue, size: 20),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -136,7 +149,7 @@ class _MapScreenState extends State<MapScreen> {
 
   Widget _buildMap() {
     return Container(
-      margin: const EdgeInsets.only(bottom: 180),
+      margin: const EdgeInsets.only(bottom: 100),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
@@ -252,7 +265,7 @@ class _MapScreenState extends State<MapScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('SYSTEM STATUS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _labelColor, letterSpacing: 0.8)),
+          Text('SYSTEM STATUS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _labelColor, letterSpacing: 0.8)),
           const SizedBox(height: 8),
           _statusRow('Active Nodes', '$activeCount', _textColor),
           const SizedBox(height: 4),
@@ -266,7 +279,7 @@ class _MapScreenState extends State<MapScreen> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(label, style: const TextStyle(fontSize: 12, color: _labelColor, fontWeight: FontWeight.w500)),
+        Text(label, style: TextStyle(fontSize: 12, color: _labelColor, fontWeight: FontWeight.w500)),
         const SizedBox(width: 12),
         Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: valueColor)),
       ],
@@ -357,7 +370,7 @@ class _MapScreenState extends State<MapScreen> {
                       children: [
                         Row(
                           children: [
-                            const Expanded(
+                            Expanded(
                               child: Text('Main Entrance Alpha', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _textColor)),
                             ),
                             Container(
@@ -371,7 +384,7 @@ class _MapScreenState extends State<MapScreen> {
                           ],
                         ),
                         const SizedBox(height: 4),
-                        const Text('North-East Perimeter • Station 4', style: TextStyle(fontSize: 11, color: _labelColor)),
+                        Text('North-East Perimeter • Station 4', style: TextStyle(fontSize: 11, color: _labelColor)),
                         const SizedBox(height: 10),
                         Row(
                           children: [
@@ -389,7 +402,7 @@ class _MapScreenState extends State<MapScreen> {
                           ],
                         ),
                         const SizedBox(height: 4),
-                        const Text('Señal', style: TextStyle(fontSize: 10, color: _labelColor)),
+                        Text('Señal', style: TextStyle(fontSize: 10, color: _labelColor)),
                       ],
                     ),
                   ),
@@ -399,51 +412,6 @@ class _MapScreenState extends State<MapScreen> {
           ),
           const SizedBox(height: 8),
         ],
-      ),
-    );
-  }
-
-  Widget _buildBottomNav() {
-    final items = [
-      _NavItem(Icons.dashboard_rounded, 'Dashboard', AppRoutes.dashboard),
-      _NavItem(Icons.map_rounded, 'Mapa', AppRoutes.map),
-      _NavItem(Icons.videocam_rounded, 'Cámaras', AppRoutes.cameraView),
-      _NavItem(Icons.psychology_rounded, 'IA Hub', AppRoutes.iaModule),
-      _NavItem(Icons.admin_panel_settings_rounded, 'Admin', AppRoutes.admin),
-    ];
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 20, offset: const Offset(0, -4))],
-      ),
-      child: SafeArea(
-        child: SizedBox(
-          height: 64,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: items.asMap().entries.map((entry) {
-              final i = entry.key;
-              final item = entry.value;
-              final selected = i == _currentIndex;
-              return GestureDetector(
-                onTap: () {
-                  if (i == _currentIndex) return;
-                  setState(() => _currentIndex = i);
-                  Navigator.pushNamed(context, item.route);
-                },
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(item.icon, color: selected ? _primaryBlue : const Color(0xFF9E9E9E), size: 24),
-                    const SizedBox(height: 4),
-                    Text(item.label, style: TextStyle(fontSize: 10, fontWeight: selected ? FontWeight.w600 : FontWeight.w400, color: selected ? _primaryBlue : const Color(0xFF9E9E9E))),
-                  ],
-                ),
-              );
-            }).toList(),
-          ),
-        ),
       ),
     );
   }
@@ -486,11 +454,4 @@ class _MapNode {
     required this.y,
     required this.isAlert,
   });
-}
-
-class _NavItem {
-  final IconData icon;
-  final String label;
-  final String route;
-  _NavItem(this.icon, this.label, this.route);
 }

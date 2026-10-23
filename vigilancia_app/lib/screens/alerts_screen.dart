@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../widgets/theme_toggle_button.dart';
+import '../widgets/responsive.dart';
+import '../theme/app_colors.dart';
+import '../main.dart';
 
 class AlertsScreen extends StatefulWidget {
   const AlertsScreen({super.key});
@@ -9,12 +13,14 @@ class AlertsScreen extends StatefulWidget {
 
 class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderStateMixin {
   // ── Paleta idéntica al proyecto ───────────────────────────────────────────
-  static const Color _bgColor     = Color(0xFFDDE8F5);
   static const Color _primaryBlue = Color(0xFF1A5DC8);
-  static const Color _textColor   = Color(0xFF1A2340);
-  static const Color _labelColor  = Color(0xFF6B7A99);
   static const Color _dangerColor = Color(0xFFE53935);
-  static const Color _cardColor   = Colors.white;
+
+  AppColors get _c => AppColors.of(context);
+  Color get _bgColor => _c.bg;
+  Color get _cardColor => _c.card;
+  Color get _textColor => _c.text;
+  Color get _labelColor => _c.label;
 
   late TabController _tabController;
 
@@ -111,18 +117,34 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _bgColor,
+      drawer: _buildDrawer(),
       appBar: AppBar(
         backgroundColor: _cardColor,
         elevation: 1,
         shadowColor: Colors.black12,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: _textColor, size: 22),
-          onPressed: () => Navigator.pop(context),
+        leading: Builder(
+          builder: (ctx) => IconButton(
+            icon: Icon(Icons.menu_rounded, color: _textColor, size: 22),
+            onPressed: () => Scaffold.of(ctx).openDrawer(),
+          ),
         ),
-        title: const Text(
+        title: Text(
           'Centro de Alertas',
           style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _textColor),
         ),
+        actions: [
+          const ThemeToggleButton(),
+          const SizedBox(width: 4),
+          GestureDetector(
+            onTap: () => Navigator.pushNamed(context, AppRoutes.profile),
+            child: CircleAvatar(
+              radius: 18,
+              backgroundColor: _primaryBlue.withValues(alpha: 0.15),
+              child: const Icon(Icons.person_rounded, color: _primaryBlue, size: 20),
+            ),
+          ),
+          const SizedBox(width: 12),
+        ],
         bottom: TabBar(
           controller: _tabController,
           labelColor: _primaryBlue,
@@ -136,11 +158,112 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
+      body: ResponsiveShell(
+        child: TabBarView(
+          controller: _tabController,
+          children: [
+            _buildEmitTab(),
+            _buildManagementTab(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDrawer() {
+    const allModules = [
+      _ModuleItem(Icons.dashboard_rounded, 'Dashboard', AppRoutes.dashboard, Color(0xFF1A5DC8)),
+      _ModuleItem(Icons.map_rounded, 'Mapa', AppRoutes.map, Color(0xFF00897B)),
+      _ModuleItem(Icons.videocam_rounded, 'Cámaras', AppRoutes.cameraView, Color(0xFF6D4C41)),
+      _ModuleItem(Icons.devices_rounded, 'Dispositivos', AppRoutes.devices, Color(0xFF5E35B1)),
+      _ModuleItem(Icons.warning_amber_rounded, 'Alertas', AppRoutes.alerts, Color(0xFFE53935)),
+      _ModuleItem(Icons.forum_rounded, 'Comunicación', AppRoutes.communication, Color(0xFF0288D1)),
+      _ModuleItem(Icons.psychology_rounded, 'IA Hub', AppRoutes.iaModule, Color(0xFF7B1FA2)),
+      _ModuleItem(Icons.assessment_rounded, 'Reportes', AppRoutes.reportes, Color(0xFF2E7D32)),
+      _ModuleItem(Icons.admin_panel_settings_rounded, 'Admin', AppRoutes.admin, Color(0xFFAD1457)),
+    ];
+    return Drawer(
+      child: Column(
         children: [
-          _buildEmitTab(),
-          _buildManagementTab(),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(20, 50, 20, 24),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF1A5DC8), Color(0xFF0D1B2A)],
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 48, height: 48,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(Icons.shield_rounded, color: Colors.white, size: 28),
+                ),
+                const SizedBox(height: 14),
+                const Text('Sentinel SVI',
+                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+                const Text('Sistema de Vigilancia Integral',
+                    style: TextStyle(color: Colors.white60, fontSize: 12)),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              children: allModules.map((mod) {
+                final isCurrent = mod.route == AppRoutes.alerts;
+                return ListTile(
+                  leading: Container(
+                    width: 38, height: 38,
+                    decoration: BoxDecoration(
+                      color: isCurrent ? mod.color : mod.color.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(mod.icon, color: isCurrent ? Colors.white : mod.color, size: 20),
+                  ),
+                  title: Text(
+                    mod.label,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
+                      color: isCurrent ? _primaryBlue : _textColor,
+                    ),
+                  ),
+                  trailing: isCurrent
+                      ? Container(
+                          width: 6, height: 6,
+                          decoration: BoxDecoration(color: _primaryBlue, shape: BoxShape.circle),
+                        )
+                      : null,
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (!isCurrent) {
+                      Navigator.pushNamed(context, mod.route);
+                    }
+                  },
+                );
+              }).toList(),
+            ),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.logout_rounded, color: _dangerColor),
+            title: const Text('Cerrar sesión', style: TextStyle(color: _dangerColor, fontWeight: FontWeight.w600)),
+            onTap: () async {
+              Navigator.pop(context);
+              await SessionService.logout();
+              if (!context.mounted) return;
+              Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (_) => false);
+            },
+          ),
+          const SizedBox(height: 12),
         ],
       ),
     );
@@ -215,12 +338,12 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
             style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _primaryBlue, letterSpacing: 0.8),
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Emisión de Alerta Operativa',
             style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _textColor),
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Asocie la alerta a cámaras, configure coordenadas exactas y notifique instantáneamente al centro de monitoreo.',
             style: TextStyle(fontSize: 12, color: _labelColor, height: 1.5),
           ),
@@ -230,7 +353,7 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
   }
 
   Widget _buildSection(String label) {
-    return Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _labelColor, letterSpacing: 0.8));
+    return Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _labelColor, letterSpacing: 0.8));
   }
 
   Widget _buildTypeGrid() {
@@ -327,7 +450,7 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
       ),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
       child: _loadingDevices
-          ? const Padding(
+          ? Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
               child: Row(
                 children: [
@@ -341,7 +464,7 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
               child: DropdownButton<int?>(
                 value: _selectedDeviceId,
                 isExpanded: true,
-                hint: const Row(
+                hint: Row(
                   children: [
                     Icon(Icons.videocam_outlined, color: _labelColor, size: 20),
                     SizedBox(width: 10),
@@ -361,7 +484,7 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
                         children: [
                           Icon(isCam ? Icons.videocam_rounded : Icons.devices_rounded, color: _primaryBlue, size: 18),
                           const SizedBox(width: 8),
-                          Text('${d['title']} ${isCam ? '(Cámara)' : ''}', style: const TextStyle(fontSize: 13, color: _textColor)),
+                          Text('${d['title']} ${isCam ? '(Cámara)' : ''}', style: TextStyle(fontSize: 13, color: _textColor)),
                         ],
                       ),
                     );
@@ -393,10 +516,10 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
       children: [
         TextField(
           controller: _locationCtrl,
-          style: const TextStyle(fontSize: 13, color: _textColor),
+          style: TextStyle(fontSize: 13, color: _textColor),
           decoration: InputDecoration(
             hintText: 'Nombre de la ubicación (ej: Pasillo 3, Torre A)',
-            hintStyle: const TextStyle(fontSize: 13, color: _labelColor),
+            hintStyle: TextStyle(fontSize: 13, color: _labelColor),
             filled: true,
             fillColor: _cardColor,
             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -465,7 +588,7 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
           ),
         ),
         const SizedBox(height: 6),
-        const Row(
+        Row(
           children: [
             Icon(Icons.touch_app_rounded, size: 14, color: _labelColor),
             SizedBox(width: 6),
@@ -487,8 +610,8 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
       child: TextField(
         controller: _descCtrl,
         maxLines: 3,
-        style: const TextStyle(fontSize: 13, color: _textColor),
-        decoration: const InputDecoration(
+        style: TextStyle(fontSize: 13, color: _textColor),
+        decoration: InputDecoration(
           hintText: 'Detalle los hechos observados, personas o vehículos involucrados...',
           hintStyle: TextStyle(fontSize: 13, color: _labelColor),
           border: InputBorder.none,
@@ -506,7 +629,7 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _dangerColor.withValues(alpha: 0.3), width: 1),
       ),
-      child: const Row(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(Icons.warning_amber_rounded, color: _dangerColor, size: 20),
@@ -622,7 +745,7 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
                           children: [
                             const Icon(Icons.error_outline_rounded, color: _dangerColor, size: 40),
                             const SizedBox(height: 10),
-                            Text('Error: $_alertsError', style: const TextStyle(color: _labelColor)),
+                            Text('Error: $_alertsError', style: TextStyle(color: _labelColor)),
                             const SizedBox(height: 12),
                             ElevatedButton(onPressed: _loadAlerts, child: const Text('Reintentar')),
                           ],
@@ -637,7 +760,7 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
                                 const SizedBox(height: 12),
                                 Text(
                                   _filterStatus == 'Todas' ? 'Sin alertas registradas' : 'No hay alertas con estado "$_filterStatus"',
-                                  style: const TextStyle(color: _labelColor, fontWeight: FontWeight.w600),
+                                  style: TextStyle(color: _labelColor, fontWeight: FontWeight.w600),
                                 ),
                               ],
                             ),
@@ -656,7 +779,7 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
   Widget _buildFilterChips() {
     final filters = ['Todas', 'Pendiente', 'En atención', 'Resuelta'];
     return Container(
-      color: _cardColor,
+      color: _c.card,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -670,11 +793,11 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
                 selected: selected,
                 selectedColor: _primaryBlue,
                 labelStyle: TextStyle(
-                  color: selected ? Colors.white : _textColor,
+                  color: selected ? Colors.white : _c.text,
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                   fontSize: 12,
                 ),
-                backgroundColor: const Color(0xFFF0F4FA),
+                backgroundColor: _c.input,
                 onSelected: (_) => setState(() => _filterStatus = f),
               ),
             );
@@ -768,12 +891,12 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
             // Ubicación y Dispositivo
             Row(
               children: [
-                const Icon(Icons.place_rounded, size: 16, color: _labelColor),
+                Icon(Icons.place_rounded, size: 16, color: _labelColor),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     alert['location']?.isNotEmpty == true ? alert['location'] : 'Sin ubicación especificada',
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _textColor),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _textColor),
                   ),
                 ),
               ],
@@ -792,7 +915,7 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
               const SizedBox(height: 6),
               Text(
                 alert['description'],
-                style: const TextStyle(fontSize: 12, color: _labelColor, height: 1.4),
+                style: TextStyle(fontSize: 12, color: _labelColor, height: 1.4),
               ),
             ],
             const SizedBox(height: 10),
@@ -803,13 +926,13 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
                 Expanded(
                   child: Text(
                     'Por: ${alert['user_name'] ?? 'Sistema'}${attendedBy != null ? ' | Atendido por: $attendedBy' : ''}',
-                    style: const TextStyle(fontSize: 11, color: _labelColor),
+                    style: TextStyle(fontSize: 11, color: _labelColor),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 Text(
                   alert['created_at'] ?? '',
-                  style: const TextStyle(fontSize: 11, color: _labelColor),
+                  style: TextStyle(fontSize: 11, color: _labelColor),
                 ),
               ],
             ),
@@ -946,4 +1069,12 @@ class _Priority {
   final String label;
   final Color color;
   const _Priority(this.label, this.color);
+}
+
+class _ModuleItem {
+  final IconData icon;
+  final String label;
+  final String route;
+  final Color color;
+  const _ModuleItem(this.icon, this.label, this.route, this.color);
 }

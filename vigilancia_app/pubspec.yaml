@@ -1,5 +1,5 @@
-name: vigilancia_app
-description: "Sistema de vigilancia y monitoreo comunitario - Sentinel Surveillance"
+name: SVI
+description: "Sistema de vigilancia y monitoreo Integral - SVI"
 publish_to: "none"
 
 version: 1.0.0+1

@@ -10,6 +10,7 @@ class Device extends Model
     use HasFactory;
 
     protected $fillable = [
+        'user_id',
         'title',
         'subtitle',
         'status',
@@ -29,6 +30,11 @@ class Device extends Model
         'latitude' => 'float',
         'longitude' => 'float',
     ];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
 
     public function alerts()
     {

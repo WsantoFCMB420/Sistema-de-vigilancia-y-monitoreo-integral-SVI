@@ -2,6 +2,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../main.dart'; // AppRoutes y SessionService
+import '../widgets/responsive.dart';
+import '../widgets/theme_toggle_button.dart';
+import '../theme/app_colors.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -21,14 +24,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _acceptTerms = false;
   bool _isLoading = false;
 
-  static const Color _bgColor = Color(0xFFDDE8F5);
+  AppColors get _c => AppColors.of(context);
   static const Color _primaryBlue = Color(0xFF1A5DC8);
-  static const Color _lightBlue = Color(0xFFEEF4FF);
-  static const Color _cardColor = Colors.white;
-  static const Color _labelColor = Color(0xFF6B7A99);
-  static const Color _textColor = Color(0xFF1A2340);
-  static const Color _hintColor = Color(0xFFADB8CC);
-  static const Color _borderColor = Color(0xFFD0DAEA);
 
   @override
   void dispose() {
@@ -125,18 +122,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bgColor,
+      backgroundColor: _c.bg,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-          child: Column(
-            children: [
-              _buildBrand(),
-              const SizedBox(height: 28),
-              _buildFormCard(),
-              const SizedBox(height: 20),
-              _buildLoginLink(),
-            ],
+        child: ResponsiveShell(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: const [
+                    ThemeToggleButton(),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _buildBrand(),
+                const SizedBox(height: 28),
+                _buildFormCard(),
+                const SizedBox(height: 20),
+                _buildLoginLink(),
+              ],
+            ),
           ),
         ),
       ),
@@ -164,109 +170,112 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const Icon(Icons.shield_rounded, color: Colors.white, size: 36),
         ),
         const SizedBox(height: 12),
-        const Text('Sentinel Surveillance',
+        const Text('SVI',
             style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
                 color: _primaryBlue)),
         const SizedBox(height: 4),
-        const Text('Crea tu cuenta para comenzar',
-            style: TextStyle(fontSize: 13, color: _labelColor)),
+        Text('Crea tu cuenta para comenzar',
+            style: TextStyle(fontSize: 13, color: _c.label)),
       ],
     );
   }
 
   // ── TARJETA FORMULARIO ────────────────────────────────────────
   Widget _buildFormCard() {
-    return Container(
-      decoration: BoxDecoration(
-        color: _cardColor,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 24,
-              offset: const Offset(0, 6)),
-        ],
-      ),
-      padding: const EdgeInsets.all(24),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Crear cuenta',
-                style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    color: _textColor)),
-            const SizedBox(height: 4),
-            const Text('Completa los datos para registrarte',
-                style: TextStyle(fontSize: 13, color: _labelColor)),
-            const SizedBox(height: 22),
-            _buildLabel('NOMBRE COMPLETO'),
-            const SizedBox(height: 6),
-            _buildTextField(
-              controller: _nameController,
-              hint: 'Juan Pérez',
-              icon: Icons.person_outline_rounded,
-              validator: (v) {
-                if (v == null || v.isEmpty) return 'Ingresa tu nombre';
-                if (v.length < 3) return 'Mínimo 3 caracteres';
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            _buildLabel('CORREO ELECTRÓNICO'),
-            const SizedBox(height: 6),
-            _buildTextField(
-              controller: _emailController,
-              hint: 'nombre@ejemplo.com',
-              icon: Icons.email_outlined,
-              keyboardType: TextInputType.emailAddress,
-              validator: (v) {
-                if (v == null || v.isEmpty) return 'Ingresa tu correo';
-                if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v))
-                  return 'Correo no válido';
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            _buildLabel('CONTRASEÑA'),
-            const SizedBox(height: 6),
-            _buildPasswordField(
-              controller: _passwordController,
-              hint: 'Mínimo 6 caracteres',
-              obscure: _obscurePassword,
-              onToggle: () =>
-                  setState(() => _obscurePassword = !_obscurePassword),
-              validator: (v) {
-                if (v == null || v.isEmpty) return 'Ingresa una contraseña';
-                if (v.length < 6) return 'Mínimo 6 caracteres';
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            _buildLabel('CONFIRMAR CONTRASEÑA'),
-            const SizedBox(height: 6),
-            _buildPasswordField(
-              controller: _confirmPasswordController,
-              hint: 'Repite tu contraseña',
-              obscure: _obscureConfirm,
-              onToggle: () =>
-                  setState(() => _obscureConfirm = !_obscureConfirm),
-              validator: (v) {
-                if (v == null || v.isEmpty) return 'Confirma tu contraseña';
-                if (v != _passwordController.text)
-                  return 'Las contraseñas no coinciden';
-                return null;
-              },
-            ),
-            const SizedBox(height: 18),
-            _buildTermsCheckbox(),
-            const SizedBox(height: 24),
-            _buildRegisterButton(),
+    return ResponsiveShell(
+      maxWidth: 440,
+      child: Container(
+        decoration: BoxDecoration(
+          color: _c.card,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 24,
+                offset: const Offset(0, 6)),
           ],
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Crear cuenta',
+                  style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: _c.text)),
+              const SizedBox(height: 4),
+              Text('Completa los datos para registrarte',
+                  style: TextStyle(fontSize: 13, color: _c.label)),
+              const SizedBox(height: 22),
+              _buildLabel('NOMBRE COMPLETO'),
+              const SizedBox(height: 6),
+              _buildTextField(
+                controller: _nameController,
+                hint: 'Juan Pérez',
+                icon: Icons.person_outline_rounded,
+                validator: (v) {
+                  if (v == null || v.isEmpty) return 'Ingresa tu nombre';
+                  if (v.length < 3) return 'Mínimo 3 caracteres';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              _buildLabel('CORREO ELECTRÓNICO'),
+              const SizedBox(height: 6),
+              _buildTextField(
+                controller: _emailController,
+                hint: 'nombre@ejemplo.com',
+                icon: Icons.email_outlined,
+                keyboardType: TextInputType.emailAddress,
+                validator: (v) {
+                  if (v == null || v.isEmpty) return 'Ingresa tu correo';
+                  if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v))
+                    return 'Correo no válido';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              _buildLabel('CONTRASEÑA'),
+              const SizedBox(height: 6),
+              _buildPasswordField(
+                controller: _passwordController,
+                hint: 'Mínimo 6 caracteres',
+                obscure: _obscurePassword,
+                onToggle: () =>
+                    setState(() => _obscurePassword = !_obscurePassword),
+                validator: (v) {
+                  if (v == null || v.isEmpty) return 'Ingresa una contraseña';
+                  if (v.length < 6) return 'Mínimo 6 caracteres';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              _buildLabel('CONFIRMAR CONTRASEÑA'),
+              const SizedBox(height: 6),
+              _buildPasswordField(
+                controller: _confirmPasswordController,
+                hint: 'Repite tu contraseña',
+                obscure: _obscureConfirm,
+                onToggle: () =>
+                    setState(() => _obscureConfirm = !_obscureConfirm),
+                validator: (v) {
+                  if (v == null || v.isEmpty) return 'Confirma tu contraseña';
+                  if (v != _passwordController.text)
+                    return 'Las contraseñas no coinciden';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 18),
+              _buildTermsCheckbox(),
+              const SizedBox(height: 24),
+              _buildRegisterButton(),
+            ],
+          ),
         ),
       ),
     );
@@ -274,10 +283,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Widget _buildLabel(String text) {
     return Text(text,
-        style: const TextStyle(
+        style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w600,
-            color: _labelColor,
+            color: _c.label,
             letterSpacing: 0.8));
   }
 
@@ -291,9 +300,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
-      style: const TextStyle(fontSize: 14, color: _textColor),
+      style: TextStyle(fontSize: 14, color: _c.text),
       decoration: _inputDecoration(
-          hint: hint, suffix: Icon(icon, size: 18, color: _hintColor)),
+          hint: hint, suffix: Icon(icon, size: 18, color: _c.hint)),
       validator: validator,
     );
   }
@@ -308,7 +317,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return TextFormField(
       controller: controller,
       obscureText: obscure,
-      style: const TextStyle(fontSize: 14, color: _textColor),
+      style: TextStyle(fontSize: 14, color: _c.text),
       decoration: _inputDecoration(
         hint: hint,
         suffix: GestureDetector(
@@ -316,7 +325,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           child: Icon(
             obscure ? Icons.lock_outline_rounded : Icons.lock_open_rounded,
             size: 18,
-            color: _hintColor,
+            color: _c.hint,
           ),
         ),
       ),
@@ -327,20 +336,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
   InputDecoration _inputDecoration({required String hint, Widget? suffix}) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(color: _hintColor, fontSize: 14),
+      hintStyle: TextStyle(color: _c.hint, fontSize: 14),
       suffixIcon: suffix != null
           ? Padding(padding: const EdgeInsets.only(right: 12), child: suffix)
           : null,
       suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
       filled: true,
-      fillColor: _lightBlue,
+      fillColor: _c.input,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _borderColor)),
+          borderSide: BorderSide(color: _c.border)),
       enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _borderColor)),
+          borderSide: BorderSide(color: _c.border)),
       focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: _primaryBlue, width: 1.5)),
@@ -369,9 +378,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         ),
         const SizedBox(width: 10),
-        const Expanded(
+        Expanded(
           child: Text('Acepto los términos y condiciones de uso',
-              style: TextStyle(fontSize: 12, color: _labelColor)),
+              style: TextStyle(fontSize: 12, color: _c.label)),
         ),
       ],
     );
@@ -411,8 +420,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Text('¿Ya tienes una cuenta?',
-            style: TextStyle(fontSize: 13, color: _labelColor)),
+        Text('¿Ya tienes una cuenta?',
+            style: TextStyle(fontSize: 13, color: _c.label)),
         TextButton(
           onPressed: () =>
               Navigator.pushReplacementNamed(context, AppRoutes.login),
@@ -426,3 +435,4 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 }
+
