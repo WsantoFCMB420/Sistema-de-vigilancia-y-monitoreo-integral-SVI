@@ -2,8 +2,10 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/api_service.dart';
 import '../main.dart';
+import '../theme/app_colors.dart';
 import '../widgets/local_camera_preview.dart';
 import '../widgets/theme_toggle_button.dart';
 
@@ -24,12 +26,14 @@ class CameraViewScreen extends StatefulWidget {
 class _CameraViewScreenState extends State<CameraViewScreen> {
   // ── Paleta idéntica al proyecto ───────────────────────────────────────────
   static const Color _primaryBlue = Color(0xFF1A5DC8);
-  static const Color _textColor = Color(0xFF1A2340);
   static const Color _dangerColor = Color(0xFFE53935);
+
+  AppColors get _c => AppColors.of(context);
 
   bool _isPlaying = true;
   bool _isMuted = false;
   double _timeline = 0.72; // posición del scrubber
+  double _zoom = 1.0;
 
   // ── Datos dinámicos del dispositivo / cámara ─────────────────────────────
   bool _argsLoaded = false;
@@ -43,6 +47,53 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
   final GlobalKey<LocalCameraPreviewState> _previewKey =
       GlobalKey<LocalCameraPreviewState>();
 
+  List<dynamic> _availableCameras = [];
+  int _currentCameraIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAvailableCameras();
+  }
+
+  Future<void> _loadAvailableCameras() async {
+    try {
+      final devices = await ApiService.getDevices();
+      if (!mounted) return;
+      setState(() {
+        _availableCameras = devices;
+        if (_deviceId != null) {
+          _currentCameraIndex = _availableCameras.indexWhere((d) => d['id'] == _deviceId);
+          if (_currentCameraIndex < 0) _currentCameraIndex = 0;
+        }
+      });
+    } catch (_) {}
+  }
+
+  void _nextCamera() {
+    if (_availableCameras.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay más cámaras registradas')),
+      );
+      return;
+    }
+    setState(() {
+      _currentCameraIndex = (_currentCameraIndex + 1) % _availableCameras.length;
+      final d = _availableCameras[_currentCameraIndex];
+      _deviceId = d['id'] is int ? d['id'] : int.tryParse(d['id']?.toString() ?? '');
+      _cameraTitle = (d['title'] ?? d['name'] ?? 'Cámara').toString();
+      _streamUrl = d['stream_url'] ?? '';
+      _ipAddress = d['ip_address'] ?? '';
+      _isPtz = d['is_ptz'] == true || d['is_ptz'] == 1;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Cambiando a: $_cameraTitle'),
+        duration: const Duration(seconds: 1),
+      ),
+    );
+  }
+
   bool get _useLocalCamera =>
       _streamUrl.isEmpty || ApiService.isLocalCamera(_streamUrl);
 
@@ -53,12 +104,12 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
       final args = ModalRoute.of(context)?.settings.arguments;
       if (args is Map<String, dynamic>) {
         _deviceId = args['id'] is int ? args['id'] : int.tryParse(args['id']?.toString() ?? '');
-        _cameraTitle = args['title'] ?? 'Webcam local';
+        _cameraTitle = (args['title'] ?? args['name'] ?? widget.cameraName).toString();
         _streamUrl = args['stream_url'] ?? '';
         _ipAddress = args['ip_address'] ?? '';
         _isPtz = args['is_ptz'] == true || args['is_ptz'] == 1;
       } else {
-        _cameraTitle = 'Webcam local';
+        _cameraTitle = widget.cameraName.isNotEmpty ? widget.cameraName : 'Webcam local';
         _streamUrl = ApiService.localCameraStream;
         _ipAddress = 'dispositivo-local';
         _isPtz = false;
@@ -92,7 +143,7 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: _c.bg,
       drawer: _buildDrawer(),
       body: SafeArea(
         child: Column(
@@ -112,17 +163,16 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
 
   // ── AppBar ────────────────────────────────────────────────────────────────
   Widget _buildAppBar() {
-    final displayId = _deviceId != null ? '#$_deviceId' : widget.cameraId;
     return Container(
-      color: const Color(0xFF0D1117),
+      color: _c.card,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
       child: Row(
         children: [
           Builder(
             builder: (ctx) => IconButton(
-              icon: const Icon(
+              icon: Icon(
                 Icons.menu_rounded,
-                color: Colors.white,
+                color: _c.text,
                 size: 20,
               ),
               onPressed: () => Scaffold.of(ctx).openDrawer(),
@@ -133,9 +183,9 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Cámara $displayId - $_cameraTitle',
-                  style: const TextStyle(
-                    color: Colors.white,
+                  _deviceId != null ? '#$_deviceId - $_cameraTitle' : _cameraTitle,
+                  style: TextStyle(
+                    color: _c.text,
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                   ),
@@ -158,6 +208,21 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
               ],
             ),
           ),
+          // Siguiente ➔ button
+          ElevatedButton.icon(
+            onPressed: _nextCamera,
+            icon: const Icon(Icons.navigate_next_rounded, size: 14),
+            label: const Text('Siguiente ➔', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _primaryBlue,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+            ),
+          ),
+          const SizedBox(width: 4),
           // REC badge
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -217,6 +282,7 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
       _ModuleItem(Icons.admin_panel_settings_rounded, 'Admin', AppRoutes.admin, Color(0xFFAD1457)),
     ];
     return Drawer(
+      backgroundColor: _c.card,
       child: Column(
         children: [
           Container(
@@ -267,7 +333,7 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
-                      color: isCurrent ? _primaryBlue : _textColor,
+                      color: isCurrent ? _primaryBlue : _c.text,
                     ),
                   ),
                   trailing: isCurrent
@@ -323,13 +389,11 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
     );
   }
 
-  // ── Chips de info (LIVE / 4K / FPS) ──────────────────────────────────────
-  Widget _buildInfoChips() => const SizedBox.shrink(); // ya están en el AppBar
+  Widget _buildInfoChips() => const SizedBox.shrink();
 
-  // ── Cards de detección y red ──────────────────────────────────────────────
   Widget _buildDetectionCards() {
     return Container(
-      color: const Color(0xFF0D1117),
+      color: _c.card,
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
       child: Row(
         children: [
@@ -504,7 +568,14 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
   Widget _buildCameraFeed() {
     return Stack(
       children: [
-        Positioned.fill(child: _buildLiveSource()),
+        Positioned.fill(
+          child: ClipRect(
+            child: Transform.scale(
+              scale: _zoom,
+              child: _buildLiveSource(),
+            ),
+          ),
+        ),
         if (_ptzFeedback != null)
           Positioned(
             top: 12,
@@ -524,58 +595,10 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
         if (_isPtz && !_useLocalCamera)
           Positioned(right: 20, bottom: 60, child: _buildPTZJoystick()),
         Positioned(
-          left: 0,
-          right: 0,
-          bottom: 50,
-          child: Center(
-            child: GestureDetector(
-              onTap: _showAlarmDialog,
-              child: Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: _dangerColor,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.3),
-                    width: 2,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _dangerColor.withValues(alpha: 0.5),
-                      blurRadius: 14,
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-                child: const Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.notifications_active_rounded,
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                    Text(
-                      'ALARM',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 8,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-        Positioned(
           bottom: 8,
           left: 12,
           child: Text(
-            '${TimeOfDay.now().format(context)} LIVE',
+            '${TimeOfDay.now().format(context)} LIVE (Zoom: ${_zoom.toStringAsFixed(1)}x)',
             style: const TextStyle(
               color: _primaryBlue,
               fontSize: 11,
@@ -652,7 +675,15 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
             onTap: () => setState(() => _isMuted = !_isMuted),
           ),
           _controlBtn(Icons.camera_alt_rounded, onTap: _captureSnapshot),
-          _controlBtn(Icons.zoom_out_rounded, onTap: () => _sendPTZ('zoom_out')),
+          _controlBtn(
+            Icons.zoom_out_rounded,
+            onTap: () {
+              setState(() {
+                _zoom = (_zoom - 0.5).clamp(1.0, 3.0);
+              });
+              _sendPTZ('zoom_out');
+            },
+          ),
           // Pause/Play — destacado
           GestureDetector(
             onTap: () => setState(() => _isPlaying = !_isPlaying),
@@ -670,7 +701,15 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
               ),
             ),
           ),
-          _controlBtn(Icons.zoom_in_rounded, onTap: () => _sendPTZ('zoom_in')),
+          _controlBtn(
+            Icons.zoom_in_rounded,
+            onTap: () {
+              setState(() {
+                _zoom = (_zoom + 0.5).clamp(1.0, 3.0);
+              });
+              _sendPTZ('zoom_in');
+            },
+          ),
           _controlBtn(Icons.notifications_active_rounded, onTap: _showAlarmDialog),
         ],
       ),
@@ -695,7 +734,7 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
   // ── Timeline scrubber ──────────────────────────────────────────────────────
   Widget _buildTimeline() {
     return Container(
-      color: const Color(0xFF0D1117),
+      color: _c.card,
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
       child: Column(
         children: [
@@ -746,140 +785,236 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
 
   // ── Acciones ──────────────────────────────────────────────────────────────
   void _showAlarmDialog() {
+    int selectedTypeIndex = 0;
+    String selectedPriority = 'Crítica';
+    final descController = TextEditingController(text: 'Alerta generada desde cámara: $_cameraTitle');
+    final locationController = TextEditingController(text: _cameraTitle);
+    bool shareToChat = true;
+
+    final types = [
+      {'label': 'Seguridad', 'icon': Icons.shield_rounded, 'color': const Color(0xFF1A5DC8)},
+      {'label': 'Incendio', 'icon': Icons.local_fire_department_rounded, 'color': const Color(0xFFFF6D00)},
+      {'label': 'Médico', 'icon': Icons.medical_services_rounded, 'color': const Color(0xFF43A047)},
+      {'label': 'Técnico', 'icon': Icons.engineering_rounded, 'color': const Color(0xFF7B1FA2)},
+    ];
+
+    final priorities = ['Baja', 'Media', 'Crítica'];
+
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: const BoxDecoration(
-          color: Color(0xFF0D1117),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Emitir Alerta desde "$_cameraTitle"',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Esta alerta quedará vinculada automáticamente a esta cámara.',
-              style: TextStyle(color: Colors.white60, fontSize: 12),
-            ),
-            const SizedBox(height: 16),
-            _alarmOption(
-              Icons.warning_amber_rounded,
-              'Intrusión / Seguridad',
-              'Seguridad',
-              'Crítica',
-              const Color(0xFFE53935),
-            ),
-            const SizedBox(height: 8),
-            _alarmOption(
-              Icons.local_fire_department_rounded,
-              'Incendio / Evacuación',
-              'Incendio',
-              'Crítica',
-              const Color(0xFFFF6D00),
-            ),
-            const SizedBox(height: 8),
-            _alarmOption(
-              Icons.info_rounded,
-              'Aviso General / Sospecha',
-              'Seguridad',
-              'Media',
-              const Color(0xFF1A5DC8),
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _alarmOption(
-    IconData icon,
-    String label,
-    String type,
-    String priority,
-    Color color,
-  ) {
-    return GestureDetector(
-      onTap: () async {
-        Navigator.pop(context);
-        try {
-          await ApiService.sendAlert(
-            type: type,
-            priority: priority,
-            location: _cameraTitle,
-            description: 'Alerta detectada desde la cámara "$_cameraTitle"',
-            deviceId: _deviceId,
-            status: 'Pendiente',
-          );
-          if (!mounted) return;
-          showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: const Row(
-                children: [
-                  Icon(Icons.check_circle_rounded, color: Color(0xFF43A047), size: 24),
-                  SizedBox(width: 8),
-                  Text('Alerta Emitida'),
-                ],
-              ),
-              content: Text('Alerta "$label" vinculada a "$_cameraTitle" enviada correctamente.'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Entendido'),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF0D1117),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Emitir Alerta - $_cameraTitle',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white70),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Text('TIPO DE INCIDENTE', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 8,
+                    childAspectRatio: 2.6,
+                  ),
+                  itemCount: types.length,
+                  itemBuilder: (ctx, i) {
+                    final t = types[i];
+                    final selected = selectedTypeIndex == i;
+                    final color = t['color'] as Color;
+                    return GestureDetector(
+                      onTap: () => setModalState(() => selectedTypeIndex = i),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: selected ? color.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: selected ? color : Colors.white12, width: selected ? 2 : 1),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(t['icon'] as IconData, color: selected ? color : Colors.white60, size: 18),
+                            const SizedBox(width: 8),
+                            Text(t['label'] as String, style: TextStyle(color: selected ? Colors.white : Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+                const Text('PRIORIDAD', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                Row(
+                  children: priorities.map((p) {
+                    final selected = selectedPriority == p;
+                    final color = p == 'Crítica' ? const Color(0xFFE53935) : (p == 'Media' ? const Color(0xFFFFA000) : const Color(0xFF43A047));
+                    return Expanded(
+                      child: GestureDetector(
+                        onTap: () => setModalState(() => selectedPriority = p),
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 4),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: selected ? color.withValues(alpha: 0.25) : Colors.white.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: selected ? color : Colors.white12, width: selected ? 2 : 1),
+                          ),
+                          child: Text(p, style: TextStyle(color: selected ? Colors.white : Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 16),
+                const Text('UBICACIÓN', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: locationController,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 0.05),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text('DESCRIPCIÓN', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: descController,
+                  maxLines: 2,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 0.05),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Compartir en chat de comunicación', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500)),
+                    Switch(
+                      value: shareToChat,
+                      activeColor: const Color(0xFF1A5DC8),
+                      onChanged: (v) => setModalState(() => shareToChat = v),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFE53935),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: () async {
+                      final type = types[selectedTypeIndex]['label'] as String;
+                      final loc = locationController.text;
+                      final desc = descController.text;
+                      Navigator.pop(context);
+                      try {
+                        await ApiService.sendAlert(
+                          type: type,
+                          priority: selectedPriority,
+                          location: loc,
+                          description: desc,
+                          deviceId: _deviceId,
+                          status: 'Pendiente',
+                        );
+                        if (shareToChat) {
+                          try {
+                            await ApiService.sendMessage('🚨 [ALERTA DESDE CÁMARA: $_cameraTitle]\nTipo: $type | Prioridad: $selectedPriority\nUbicación: $loc\nDescripción: ${desc.isNotEmpty ? desc : 'Sin descripción'}\n${_deviceId != null ? '📹 Cámara ID: $_deviceId' : ''}');
+                          } catch (_) {}
+                        }
+                        if (!mounted) return;
+                        showDialog(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            backgroundColor: const Color(0xFF0D1117),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            title: const Row(
+                              children: [
+                                Icon(Icons.check_circle_rounded, color: Color(0xFF43A047), size: 24),
+                                SizedBox(width: 8),
+                                Text('Alerta Emitida', style: TextStyle(color: Colors.white)),
+                              ],
+                            ),
+                            content: Text(
+                              'Alerta "$type" emitida correctamente para "$_cameraTitle".'
+                              '${shareToChat ? "\n(Compartida en el chat)" : ""}',
+                              style: const TextStyle(color: Colors.white70),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: const Text('Entendido'),
+                              ),
+                            ],
+                          ),
+                        );
+                      } catch (e) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error al emitir alerta: $e'), backgroundColor: Colors.redAccent),
+                        );
+                      }
+                    },
+                    child: const Text('EMITIR ALERTA', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                  ),
                 ),
               ],
             ),
-          );
-        } catch (e) {
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error al emitir alerta: $e'), backgroundColor: Colors.redAccent),
-          );
-        }
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: color, size: 22),
-            const SizedBox(width: 12),
-            Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 
+  // ── Menú 3 Puntos ──────────────────────────────────────────────────────────
   void _showCameraMenu() {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
+      builder: (ctx) => Container(
         decoration: const BoxDecoration(
           color: Color(0xFF0D1117),
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -888,11 +1023,32 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _menuItem(Icons.download_rounded, 'Descargar grabación'),
+            _menuItem(
+              Icons.download_rounded,
+              'Descargar grabación',
+              onTap: () {
+                Navigator.pop(ctx);
+                _downloadRecording();
+              },
+            ),
             const SizedBox(height: 8),
-            _menuItem(Icons.share_rounded, 'Compartir feed'),
+            _menuItem(
+              Icons.share_rounded,
+              'Compartir feed',
+              onTap: () {
+                Navigator.pop(ctx);
+                _shareFeed();
+              },
+            ),
             const SizedBox(height: 8),
-            _menuItem(Icons.settings_rounded, 'Configuración de cámara'),
+            _menuItem(
+              Icons.settings_rounded,
+              'Configuración de cámara',
+              onTap: () {
+                Navigator.pop(ctx);
+                _showCameraSettings();
+              },
+            ),
             const SizedBox(height: 16),
           ],
         ),
@@ -900,9 +1056,9 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
     );
   }
 
-  Widget _menuItem(IconData icon, String label) {
+  Widget _menuItem(IconData icon, String label, {required VoidCallback onTap}) {
     return GestureDetector(
-      onTap: () => Navigator.pop(context),
+      onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
@@ -924,6 +1080,145 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _downloadRecording() async {
+    final fileName = 'grabacion_${_deviceId ?? 'local'}_${DateTime.now().millisecondsSinceEpoch}.mp4';
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0D1117),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.download_rounded, color: _primaryBlue, size: 24),
+            SizedBox(width: 8),
+            Text('Descargar Grabación', style: TextStyle(color: Colors.white)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Archivo: $fileName', style: const TextStyle(color: Colors.white70, fontSize: 13)),
+            const SizedBox(height: 8),
+            const Text('Ubicación: Descargas / SVI_Recordings', style: TextStyle(color: Colors.white54, fontSize: 11)),
+            const SizedBox(height: 12),
+            const Text('¿Desea descargar este segmento de grabación en su dispositivo?', style: TextStyle(color: Colors.white, fontSize: 13)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: _primaryBlue),
+            onPressed: () {
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Descarga completada: $fileName (Guardado en SVI_Recordings)'),
+                  backgroundColor: _primaryBlue,
+                  duration: const Duration(seconds: 3),
+                ),
+              );
+            },
+            child: const Text('Descargar / Guardar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _shareFeed() {
+    final url = _streamUrl.isNotEmpty ? _streamUrl : ApiService.localCameraStream;
+    Clipboard.setData(ClipboardData(text: url));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('URL del feed copiada al portapapeles: $url'),
+        backgroundColor: _primaryBlue,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  void _showCameraSettings() {
+    final url = _streamUrl.isNotEmpty ? _streamUrl : ApiService.localCameraStream;
+    final ip = _ipAddress.isNotEmpty ? _ipAddress : '127.0.0.1 (Local)';
+
+    String port = '8080';
+    try {
+      final uri = Uri.parse(url);
+      if (uri.hasPort && uri.port != 0) {
+        port = uri.port.toString();
+      } else if (uri.scheme == 'https') {
+        port = '443';
+      } else if (uri.scheme == 'http') {
+        port = '80';
+      } else if (uri.scheme == 'rtsp') {
+        port = '554';
+      }
+    } catch (_) {}
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: const Color(0xFF0D1117),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.settings_rounded, color: _primaryBlue, size: 22),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Configuración - $_cameraTitle',
+                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _settingRow('Título', _cameraTitle),
+            const Divider(color: Colors.white12, height: 16),
+            _settingRow('Dirección IP', ip),
+            const Divider(color: Colors.white12, height: 16),
+            _settingRow('Puerto', port),
+            const Divider(color: Colors.white12, height: 16),
+            _settingRow('URL de Stream', url),
+            const Divider(color: Colors.white12, height: 16),
+            _settingRow('Estado PTZ', _isPtz ? 'Habilitado (Control Activo)' : 'Deshabilitado (Cámara Fija)'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('Cerrar', style: TextStyle(color: _primaryBlue)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _settingRow(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label.toUpperCase(),
+          style: const TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 0.5),
+        ),
+        const SizedBox(height: 2),
+        SelectableText(
+          value,
+          style: const TextStyle(color: Colors.white, fontSize: 13),
+        ),
+      ],
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_colors.dart';
 
 class DeviceCard extends StatelessWidget {
   final String title;
@@ -9,6 +10,7 @@ class DeviceCard extends StatelessWidget {
   final String streamUrl;
   final VoidCallback? onTap;
   final VoidCallback? onDelete;
+  final VoidCallback? onEdit;
 
   const DeviceCard({
     super.key,
@@ -20,6 +22,7 @@ class DeviceCard extends StatelessWidget {
     this.streamUrl = '',
     this.onTap,
     this.onDelete,
+    this.onEdit,
   });
 
   Color get _statusColor {
@@ -65,6 +68,7 @@ class DeviceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = AppColors.of(context);
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -73,9 +77,9 @@ class DeviceCard extends StatelessWidget {
         child: Container(
           margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: c.card,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE4EAF5), width: 1),
+            border: Border.all(color: c.border, width: 1),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.05),
@@ -85,56 +89,58 @@ class DeviceCard extends StatelessWidget {
             ],
           ),
           child: Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(12),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 // ── Ícono del dispositivo ────────────────────────────
                 Container(
-                  width: 52, height: 52,
+                  width: 46, height: 46,
                   decoration: BoxDecoration(
                     color: const Color(0xFF1A5DC8).withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: imageUrl.isNotEmpty
                       ? ClipRRect(
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(12),
                           child: Image.network(
                             imageUrl,
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) => Icon(
                               _deviceIcon,
                               color: const Color(0xFF1A5DC8),
-                              size: 26,
+                              size: 24,
                             ),
                           ),
                         )
-                      : Icon(_deviceIcon, color: const Color(0xFF1A5DC8), size: 26),
+                      : Icon(_deviceIcon, color: const Color(0xFF1A5DC8), size: 24),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 10),
 
-                // ── Nombre y descripción ─────────────────────────────
+                // ── Nombre y descripción (Expanded con flexible constraints) ─
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Row(
                         children: [
                           Flexible(
                             child: Text(
                               title,
-                              style: const TextStyle(
-                                fontSize: 14,
+                              style: TextStyle(
+                                fontSize: 13,
                                 fontWeight: FontWeight.w700,
-                                color: Color(0xFF1A2340),
+                                color: c.text,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           if (isPtz) ...[
-                            const SizedBox(width: 6),
+                            const SizedBox(width: 4),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                               decoration: BoxDecoration(
                                 color: const Color(0xFF1A5DC8).withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(4),
@@ -142,7 +148,7 @@ class DeviceCard extends StatelessWidget {
                               child: const Text(
                                 'PTZ',
                                 style: TextStyle(
-                                  fontSize: 9,
+                                  fontSize: 8,
                                   fontWeight: FontWeight.w700,
                                   color: Color(0xFF1A5DC8),
                                 ),
@@ -151,14 +157,14 @@ class DeviceCard extends StatelessWidget {
                           ],
                         ],
                       ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: 2),
                       Text(
                         subtitle.isNotEmpty
                             ? subtitle
                             : (streamUrl.isNotEmpty ? streamUrl : 'Sin descripción'),
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF6B7A99),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: c.label,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -166,45 +172,60 @@ class DeviceCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
 
-                // ── Badge de estado ──────────────────────────────────
+                // ── Acciones y Estado (Optimizadas para mobile portrait sin clipping) ─
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        if (onEdit != null) ...[
+                          GestureDetector(
+                            onTap: onEdit,
+                            child: Container(
+                              padding: const EdgeInsets.all(5),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF1A5DC8).withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Icon(Icons.edit_outlined, color: Color(0xFF1A5DC8), size: 15),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                        ],
                         if (onDelete != null) ...[
                           GestureDetector(
                             onTap: onDelete,
                             child: Container(
                               padding: const EdgeInsets.all(5),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFE53935).withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(8),
+                                color: const Color(0xFFE53935).withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(6),
                               ),
-                              child: const Icon(Icons.delete_outline_rounded, color: Color(0xFFE53935), size: 16),
+                              child: const Icon(Icons.delete_outline_rounded, color: Color(0xFFE53935), size: 15),
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 4),
                         ],
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                           decoration: BoxDecoration(
                             color: _statusBg,
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: _statusColor.withValues(alpha: 0.3), width: 1),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(_statusIcon, color: _statusColor, size: 11),
-                              const SizedBox(width: 4),
+                              Icon(_statusIcon, color: _statusColor, size: 10),
+                              const SizedBox(width: 3),
                               Text(
                                 status,
                                 style: TextStyle(
-                                  fontSize: 11,
+                                  fontSize: 10,
                                   fontWeight: FontWeight.w700,
                                   color: _statusColor,
                                 ),
@@ -220,7 +241,8 @@ class DeviceCard extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text('Ver feed', style: TextStyle(fontSize: 10, color: Color(0xFF1A5DC8), fontWeight: FontWeight.w600)),
-                          Icon(Icons.chevron_right_rounded, size: 14, color: Color(0xFF1A5DC8)),
+                          SizedBox(width: 2),
+                          Icon(Icons.chevron_right_rounded, size: 12, color: Color(0xFF1A5DC8)),
                         ],
                       ),
                     ],

@@ -129,11 +129,11 @@ class _LoginScreenState extends State<LoginScreen> {
   // ── RECUPERAR CONTRASEÑA ──────────────────────────────────────
   Future<void> _showForgotPasswordDialog() async {
     final emailCtrl = TextEditingController();
+    bool loading = false;
     return showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) {
-          bool loading = false;
           return AlertDialog(
             backgroundColor: _c.card,
             shape:

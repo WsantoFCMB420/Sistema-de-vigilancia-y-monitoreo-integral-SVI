@@ -212,41 +212,50 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              children: _allModules.map((mod) {
-                final isCurrent = mod.route == AppRoutes.dashboard;
-                return ListTile(
-                  leading: Container(
-                    width: 38, height: 38,
-                    decoration: BoxDecoration(
-                      color: isCurrent ? mod.color : mod.color.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(mod.icon, color: isCurrent ? Colors.white : mod.color, size: 20),
-                  ),
-                  title: Text(
-                    mod.label,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
-                      color: isCurrent ? _primaryBlue : _textColor,
-                    ),
-                  ),
-                  trailing: isCurrent
-                      ? Container(
-                          width: 6, height: 6,
-                          decoration: BoxDecoration(color: _primaryBlue, shape: BoxShape.circle),
-                        )
-                      : null,
-                  onTap: () {
-                    Navigator.pop(context); // cierra drawer
-                    if (!isCurrent) {
-                      Navigator.pushNamed(context, mod.route);
-                    }
-                  },
+            child: FutureBuilder<bool>(
+              future: SessionService.isAdmin(),
+              builder: (context, snapshot) {
+                final isAdmin = snapshot.data ?? false;
+                final visibleModules = _allModules
+                    .where((mod) => mod.route != AppRoutes.admin || isAdmin)
+                    .toList();
+                return ListView(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  children: visibleModules.map((mod) {
+                    final isCurrent = mod.route == AppRoutes.dashboard;
+                    return ListTile(
+                      leading: Container(
+                        width: 38, height: 38,
+                        decoration: BoxDecoration(
+                          color: isCurrent ? mod.color : mod.color.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(mod.icon, color: isCurrent ? Colors.white : mod.color, size: 20),
+                      ),
+                      title: Text(
+                        mod.label,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
+                          color: isCurrent ? _primaryBlue : _textColor,
+                        ),
+                      ),
+                      trailing: isCurrent
+                          ? Container(
+                              width: 6, height: 6,
+                              decoration: BoxDecoration(color: _primaryBlue, shape: BoxShape.circle),
+                            )
+                          : null,
+                      onTap: () {
+                        Navigator.pop(context); // cierra drawer
+                        if (!isCurrent) {
+                          Navigator.pushNamed(context, mod.route);
+                        }
+                      },
+                    );
+                  }).toList(),
                 );
-              }).toList(),
+              },
             ),
           ),
           const Divider(height: 1),

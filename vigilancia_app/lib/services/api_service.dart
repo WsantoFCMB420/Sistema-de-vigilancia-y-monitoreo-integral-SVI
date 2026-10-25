@@ -61,7 +61,7 @@ class ApiService {
     }
 
     final uri = Uri.parse('$baseUrl$path');
-    final headers = _authHeaders(token!);
+    final headers = _authHeaders(token);
     final encodedBody = body == null ? null : jsonEncode(body);
 
     late final http.Response response;

@@ -560,7 +560,7 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
               height: 40,
               padding: const EdgeInsets.symmetric(horizontal: 14),
               decoration: BoxDecoration(
-                color: const Color(0xFFF0F4FA),
+                color: _c.input,
                 borderRadius: BorderRadius.circular(20),
               ),
               child: TextField(
@@ -571,7 +571,7 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
                   hintStyle: TextStyle(fontSize: 13, color: _labelColor),
                   border: InputBorder.none,
                   isDense: true,
-                  contentPadding: EdgeInsets.symmetric(vertical: 10),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
                 ),
               ),
             ),
@@ -581,7 +581,7 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
             onTap: _sendMessage,
             child: Container(
               width: 40, height: 40,
-              decoration: BoxDecoration(color: _primaryBlue, shape: BoxShape.circle),
+              decoration: const BoxDecoration(color: _primaryBlue, shape: BoxShape.circle),
               child: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
             ),
           ),
@@ -595,7 +595,7 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
       onTap: onTap,
       child: Container(
         width: 36, height: 36,
-        decoration: BoxDecoration(color: const Color(0xFFF0F4FA), shape: BoxShape.circle),
+        decoration: BoxDecoration(color: _c.input, shape: BoxShape.circle),
         child: Icon(icon, color: _labelColor, size: 20),
       ),
     );

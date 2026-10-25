@@ -1,8 +1,14 @@
+import 'dart:async';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-/// Vista en vivo de la webcam del portátil o de una cámara USB conectada.
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
+// ignore: undefined_prefixed_name
+import 'dart:ui_web' as ui_web;
+
+/// Vista en vivo de la webcam del portátil, cámara USB o dispositivo móvil.
 class LocalCameraPreview extends StatefulWidget {
   final bool playing;
   final bool showDevicePicker;
@@ -26,6 +32,10 @@ class LocalCameraPreviewState extends State<LocalCameraPreview> {
   String? _error;
   bool _loading = true;
   bool _paused = false;
+
+  // Web HTML stream support
+  String? _webVideoViewId;
+  html.MediaStream? _webMediaStream;
 
   ImageFormatGroup get _format {
     switch (defaultTargetPlatform) {
@@ -57,17 +67,52 @@ class LocalCameraPreviewState extends State<LocalCameraPreview> {
       _error = null;
     });
 
+    if (kIsWeb) {
+      try {
+        final mediaStream = await html.window.navigator.mediaDevices?.getUserMedia({
+          'video': {'width': {'ideal': 1280}, 'height': {'ideal': 720}},
+          'audio': false,
+        });
+
+        if (mediaStream != null) {
+          final viewId = 'webcam-html-${DateTime.now().millisecondsSinceEpoch}';
+          final videoElement = html.VideoElement()
+            ..srcObject = mediaStream
+            ..autoplay = true
+            ..muted = true
+            ..style.width = '100%'
+            ..style.height = '100%'
+            ..style.objectFit = 'cover';
+
+          // ignore: undefined_prefixed_name
+          ui_web.platformViewRegistry.registerViewFactory(viewId, (int id) => videoElement);
+
+          if (!mounted) return;
+          setState(() {
+            _webVideoViewId = viewId;
+            _webMediaStream = mediaStream;
+            _loading = false;
+            _error = null;
+          });
+          return;
+        }
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error = 'No se pudo acceder a la cámara web del navegador: $e\nVerifica que hayas concedido permisos.';
+        });
+        return;
+      }
+    }
+
     try {
       final cameras = await availableCameras();
       if (!mounted) return;
       if (cameras.isEmpty) {
         setState(() {
           _loading = false;
-          _error =
-              'No se encontró ninguna cámara.\n'
-              'Conecta una webcam USB o activa la cámara del portátil.\n'
-              'En Windows: Configuración → Privacidad → Cámara → '
-              'permite el acceso a las aplicaciones de escritorio.';
+          _error = 'No se encontró ninguna cámara disponible en este dispositivo.';
         });
         return;
       }
@@ -85,10 +130,7 @@ class LocalCameraPreviewState extends State<LocalCameraPreview> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error =
-            'No se pudo iniciar la cámara.\n'
-            'Revisa que no esté en uso por otra aplicación y que Windows '
-            'permita el acceso a la cámara.';
+        _error = 'No se pudo iniciar la cámara: $e';
       });
     }
   }
@@ -145,6 +187,16 @@ class LocalCameraPreviewState extends State<LocalCameraPreview> {
   }
 
   Future<void> _syncPlayback() async {
+    if (kIsWeb && _webMediaStream != null) {
+      try {
+        final tracks = _webMediaStream!.getVideoTracks();
+        for (var track in tracks) {
+          track.enabled = widget.playing;
+        }
+      } catch (_) {}
+      return;
+    }
+
     final controller = _controller;
     if (controller == null || !controller.value.isInitialized) return;
     try {
@@ -155,12 +207,13 @@ class LocalCameraPreviewState extends State<LocalCameraPreview> {
         await controller.pausePreview();
         _paused = true;
       }
-    } catch (_) {
-      // Algunos plugins de escritorio no implementan pause/resume.
-    }
+    } catch (_) {}
   }
 
   Future<XFile?> takePicture() async {
+    if (kIsWeb) {
+      return null;
+    }
     final controller = _controller;
     if (controller == null ||
         !controller.value.isInitialized ||
@@ -173,12 +226,10 @@ class LocalCameraPreviewState extends State<LocalCameraPreview> {
   String _describeCameraError(CameraException error) {
     final code = error.code.toLowerCase();
     if (code.contains('access') || code.contains('denied') || code.contains('permission')) {
-      return 'Windows bloqueó el acceso a la cámara.\n'
-          'Abre Configuración → Privacidad y seguridad → Cámara '
-          'y activa el acceso para aplicaciones de escritorio.';
+      return 'Permiso de cámara denegado.\nVerifica los permisos en la configuración de tu dispositivo.';
     }
     if (code.contains('audio') || code.contains('inuse') || code.contains('busy')) {
-      return 'La cámara está en uso por otra aplicación. Ciérrala e inténtalo de nuevo.';
+      return 'La cámara está siendo utilizada por otra aplicación.';
     }
     return error.description?.isNotEmpty == true
         ? error.description!
@@ -198,6 +249,14 @@ class LocalCameraPreviewState extends State<LocalCameraPreview> {
 
   @override
   void dispose() {
+    if (kIsWeb && _webMediaStream != null) {
+      try {
+        final tracks = _webMediaStream!.getTracks();
+        for (var track in tracks) {
+          track.stop();
+        }
+      } catch (_) {}
+    }
     _controller?.dispose();
     super.dispose();
   }
@@ -230,13 +289,30 @@ class LocalCameraPreviewState extends State<LocalCameraPreview> {
                   style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
                 ),
                 const SizedBox(height: 16),
-                OutlinedButton(
+                OutlinedButton.icon(
                   onPressed: _start,
-                  child: const Text('Reintentar'),
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                  label: const Text('Reintentar / Conceder Permiso'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Colors.white38),
+                  ),
                 ),
               ],
             ),
           ),
+        ),
+      );
+    }
+
+    if (kIsWeb && _webVideoViewId != null) {
+      return ColoredBox(
+        color: Colors.black,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            HtmlElementView(viewType: _webVideoViewId!),
+          ],
         ),
       );
     }
@@ -248,11 +324,13 @@ class LocalCameraPreviewState extends State<LocalCameraPreview> {
         fit: StackFit.expand,
         children: [
           Center(
-            child: AspectRatio(
-              aspectRatio: controller.value.aspectRatio == 0
-                  ? 16 / 9
-                  : controller.value.aspectRatio,
-              child: CameraPreview(controller),
+            child: FittedBox(
+              fit: BoxFit.cover,
+              child: SizedBox(
+                width: controller.value.previewSize?.height ?? 100,
+                height: controller.value.previewSize?.width ?? 100,
+                child: CameraPreview(controller),
+              ),
             ),
           ),
           if (widget.showDevicePicker && _cameras.length > 1)

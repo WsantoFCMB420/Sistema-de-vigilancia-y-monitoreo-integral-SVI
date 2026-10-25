@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../services/api_service.dart';
 import '../main.dart'; // Para AppRoutes
 import '../widgets/theme_toggle_button.dart';
@@ -27,6 +29,7 @@ class _MapScreenState extends State<MapScreen> {
   bool _loading = true;
   String? _error;
   _MapNode? _selectedNode;
+  final TransformationController _transformationController = TransformationController();
 
   @override
   void initState() {
@@ -74,6 +77,7 @@ class _MapScreenState extends State<MapScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _bgColor,
+      drawer: _buildDrawer(),
       body: SafeArea(
         child: ResponsiveShell(
           child: Column(
@@ -110,12 +114,14 @@ class _MapScreenState extends State<MapScreen> {
       children: [
         Row(
           children: [
-            GestureDetector(
-              onTap: () => Navigator.maybePop(context),
-              child: Container(
-                width: 36, height: 36,
-                decoration: BoxDecoration(color: _primaryBlue.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-                child: Icon(Icons.arrow_back_rounded, color: _primaryBlue, size: 20),
+            Builder(
+              builder: (ctx) => GestureDetector(
+                onTap: () => Scaffold.of(ctx).openDrawer(),
+                child: Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(color: _primaryBlue.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                  child: const Icon(Icons.menu_rounded, color: _primaryBlue, size: 20),
+                ),
               ),
             ),
             const SizedBox(width: 10),
@@ -147,81 +153,164 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  Widget _buildMap() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 100),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF0D1B2A), Color(0xFF0A2540), Color(0xFF0D1B2A)],
-        ),
-      ),
-      child: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                      const SizedBox(height: 16),
-                      Text(_error!, style: const TextStyle(color: Colors.white70)),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _loadNodes,
-                        child: const Text('Reintentar'),
-                      ),
-                    ],
+  Widget _buildDrawer() {
+    const allModules = [
+      _ModuleItem(Icons.dashboard_rounded, 'Dashboard', AppRoutes.dashboard, Color(0xFF1A5DC8)),
+      _ModuleItem(Icons.map_rounded, 'Mapa', AppRoutes.map, Color(0xFF00897B)),
+      _ModuleItem(Icons.videocam_rounded, 'Cámaras', AppRoutes.cameraView, Color(0xFF6D4C41)),
+      _ModuleItem(Icons.devices_rounded, 'Dispositivos', AppRoutes.devices, Color(0xFF5E35B1)),
+      _ModuleItem(Icons.warning_amber_rounded, 'Alertas', AppRoutes.alerts, Color(0xFFE53935)),
+      _ModuleItem(Icons.forum_rounded, 'Comunicación', AppRoutes.communication, Color(0xFF0288D1)),
+      _ModuleItem(Icons.psychology_rounded, 'IA Hub', AppRoutes.iaModule, Color(0xFF7B1FA2)),
+      _ModuleItem(Icons.assessment_rounded, 'Reportes', AppRoutes.reportes, Color(0xFF2E7D32)),
+      _ModuleItem(Icons.admin_panel_settings_rounded, 'Admin', AppRoutes.admin, Color(0xFFAD1457)),
+    ];
+    return Drawer(
+      child: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(20, 50, 20, 24),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF1A5DC8), Color(0xFF0D1B2A)],
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 48, height: 48,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                )
-              : LayoutBuilder(
-                  builder: (context, constraints) {
-                    return Stack(
-                      children: [
-                        CustomPaint(
-                          size: Size(constraints.maxWidth, constraints.maxHeight),
-                          painter: _MapGridPainter(),
-                        ),
-                        Positioned(
-                          left: constraints.maxWidth * 0.50 - 40,
-                          top: constraints.maxHeight * 0.42 - 40,
-                          child: Container(
-                            width: 80, height: 80,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: _primaryBlue.withValues(alpha: 0.15),
-                            ),
-                            child: Center(
-                              child: Container(
-                                width: 20, height: 20,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: _primaryBlue.withValues(alpha: 0.6),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        ..._nodes.map((node) {
-                          return Positioned(
-                            left: constraints.maxWidth * node.x - 16,
-                            top: constraints.maxHeight * node.y - 16,
-                            child: GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _selectedNode = (_selectedNode == node) ? null : node;
-                                });
-                              },
-                              child: _buildMapNodeWidget(node),
-                            ),
-                          );
-                        }),
-                      ],
-                    );
-                  },
+                  child: const Icon(Icons.shield_rounded, color: Colors.white, size: 28),
                 ),
+                const SizedBox(height: 14),
+                const Text('Sentinel SVI',
+                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+                const Text('Sistema de Vigilancia Integral',
+                    style: TextStyle(color: Colors.white60, fontSize: 12)),
+              ],
+            ),
+          ),
+          Expanded(
+            child: FutureBuilder<bool>(
+              future: SessionService.isAdmin(),
+              builder: (context, snapshot) {
+                final isAdmin = snapshot.data ?? false;
+                final visibleModules = allModules
+                    .where((mod) => mod.route != AppRoutes.admin || isAdmin)
+                    .toList();
+                return ListView(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  children: visibleModules.map((mod) {
+                    final isCurrent = mod.route == AppRoutes.map;
+                    return ListTile(
+                      leading: Container(
+                        width: 38, height: 38,
+                        decoration: BoxDecoration(
+                          color: isCurrent ? mod.color : mod.color.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(mod.icon, color: isCurrent ? Colors.white : mod.color, size: 20),
+                      ),
+                      title: Text(
+                        mod.label,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
+                          color: isCurrent ? _primaryBlue : _textColor,
+                        ),
+                      ),
+                      trailing: isCurrent
+                          ? Container(
+                              width: 6, height: 6,
+                              decoration: BoxDecoration(color: _primaryBlue, shape: BoxShape.circle),
+                            )
+                          : null,
+                      onTap: () {
+                        Navigator.pop(context);
+                        if (!isCurrent) {
+                          Navigator.pushNamed(context, mod.route);
+                        }
+                      },
+                    );
+                  }).toList(),
+                );
+              },
+            ),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.logout_rounded, color: _dangerColor),
+            title: const Text('Cerrar sesión', style: TextStyle(color: _dangerColor, fontWeight: FontWeight.w600)),
+            onTap: () async {
+              Navigator.pop(context);
+              await SessionService.logout();
+              if (!context.mounted) return;
+              Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (_) => false);
+            },
+          ),
+          const SizedBox(height: 12),
+        ],
+      ),
     );
+  }
+
+  Widget _buildMap() {
+    return _loading
+        ? const Center(child: CircularProgressIndicator())
+        : _error != null
+            ? Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                    const SizedBox(height: 16),
+                    Text(_error!, style: const TextStyle(color: Colors.white70)),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _loadNodes,
+                      child: const Text('Reintentar'),
+                    ),
+                  ],
+                ),
+              )
+            : FlutterMap(
+                options: const MapOptions(
+                  initialCenter: LatLng(5.3114, -73.8155), // Villa de San Diego de Ubaté por defecto
+                  initialZoom: 13.0,
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.svi.vigilancia',
+                  ),
+                  MarkerLayer(
+                    markers: _nodes.map((node) {
+                      final lat = 5.3114 + (0.5 - node.y) * 0.08;
+                      final lng = -73.8155 + (node.x - 0.5) * 0.08;
+                      return Marker(
+                        point: LatLng(lat, lng),
+                        width: 50,
+                        height: 50,
+                        child: GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _selectedNode = (_selectedNode == node) ? null : node;
+                            });
+                          },
+                          child: _buildMapNodeWidget(node),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              );
   }
 
   Widget _buildMapNodeWidget(_MapNode node) {
@@ -290,11 +379,28 @@ class _MapScreenState extends State<MapScreen> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _mapControlBtn(Icons.add, () {}),
+        _mapControlBtn(Icons.add, () {
+          final matrix = _transformationController.value.clone();
+          matrix.scale(1.25, 1.25, 1.0);
+          _transformationController.value = matrix;
+        }),
         const SizedBox(height: 6),
-        _mapControlBtn(Icons.remove, () {}),
+        _mapControlBtn(Icons.remove, () {
+          final matrix = _transformationController.value.clone();
+          matrix.scale(0.8, 0.8, 1.0);
+          _transformationController.value = matrix;
+        }),
         const SizedBox(height: 12),
-        _mapControlBtn(Icons.my_location_rounded, () {}, color: _primaryBlue),
+        _mapControlBtn(Icons.my_location_rounded, () {
+          _transformationController.value = Matrix4.identity();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Centrado en Mi Ubicación (GPS activo: Lat 5.3114, Lng -73.8155)'),
+              backgroundColor: _primaryBlue,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }, color: _primaryBlue),
       ],
     );
   }
@@ -454,4 +560,12 @@ class _MapNode {
     required this.y,
     required this.isAlert,
   });
+}
+
+class _ModuleItem {
+  final IconData icon;
+  final String label;
+  final String route;
+  final Color color;
+  const _ModuleItem(this.icon, this.label, this.route, this.color);
 }

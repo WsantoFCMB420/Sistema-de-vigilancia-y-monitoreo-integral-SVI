@@ -16,23 +16,20 @@ State<IAModuleScreen> createState() => _IAModuleScreenState();
 class _IAModuleScreenState extends State<IAModuleScreen>
     with TickerProviderStateMixin {
   // ── Colores ───────────────────────────────────────────────────
-static const Color _primaryBlue = Color(0xFF1A5DC8);
-static const Color _danger = Color(0xFFE53935);
-static const Color _warning = Color(0xFFFF8C00);
-static const Color _purple = Color(0xFF7C3AED);
-static const Color _liveBadge = Color(0xFF16A34A);
+  static const Color _primaryBlue = Color(0xFF1A5DC8);
+  static const Color _danger = Color(0xFFE53935);
+  static const Color _purple = Color(0xFF7C3AED);
+  static const Color _liveBadge = Color(0xFF16A34A);
 
-AppColors get _c => AppColors.of(context);
-Color get _bg => _c.bg;
-Color get _cardBg => _c.card;
-Color get _textDark => _c.text;
-Color get _textGray => _c.label;
+  AppColors get _c => AppColors.of(context);
+  Color get _bg => _c.bg;
+  Color get _cardBg => _c.card;
+  Color get _textDark => _c.text;
+  Color get _textGray => _c.label;
 
   // ── Estado ────────────────────────────────────────────────────
-bool _iaActive = true;
-bool _alertActive = false;
-int _selectedNav = 3; // AI Hub seleccionado
-double _precision = 98.4;
+  bool _alertActive = false;
+  double _precision = 98.4;
 List<double> _networkLoad = [0.6, 0.45, 0.8, 0.55, 0.7, 0.5, 0.65];
 
 late AnimationController _pulseController;

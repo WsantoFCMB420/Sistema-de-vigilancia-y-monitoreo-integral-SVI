@@ -1,4 +1,4 @@
-name: SVI
+name: vigilancia_app
 description: "Sistema de vigilancia y monitoreo Integral - SVI"
 publish_to: "none"
 
@@ -18,16 +18,25 @@ dependencies:
   shared_preferences: ^2.2.3
 
   # ── Íconos iOS ────────────────────────────────────────────────
-  cupertino_icons: ^1.0.8
+  cupertino_icons: ^2.0.0
 
   # ── Cámara del dispositivo (celular / webcam) ─────────────────
   camera: ^0.12.1
-  camera_windows: ^0.2.6
+  camera_windows: ^0.3.0+1
   video_player: ^2.9.2
+
+  # ── Permisos, Mapas y Archivos Reales ─────────────────────────
+  permission_handler: ^11.3.1
+  geolocator: ^13.0.2
+  flutter_map: ^8.3.2
+  latlong2: ^0.9.1
+  file_saver: ^0.2.6
+  flutter_map_cancellable_tile_provider: ^3.0.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_lints: ^6.0.0
   mockito: ^5.4.0
   build_runner: ^2.4.0
 

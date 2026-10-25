@@ -43,6 +43,7 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
   bool _loadingAlerts = true;
   String? _alertsError;
   String _filterStatus = 'Todas'; // 'Todas', 'Pendiente', 'En atención', 'Resuelta'
+  bool _shareToChat = true;
 
   final List<_IncidentType> _types = [
     _IncidentType('Seguridad', Icons.shield_rounded, const Color(0xFF1A5DC8)),
@@ -309,6 +310,9 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
                 _buildDescriptionField(),
                 const SizedBox(height: 20),
 
+                _buildShareToggle(),
+                const SizedBox(height: 20),
+
                 _buildHighPriorityWarning(),
               ],
             ),
@@ -316,6 +320,35 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
         ),
         _buildEmitButton(),
       ],
+    );
+  }
+
+  Widget _buildShareToggle() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: _cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _c.border),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.forum_rounded, color: _primaryBlue, size: 20),
+              const SizedBox(width: 10),
+              Text('Compartir alerta y cámara en el chat de Comunicación',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _textColor)),
+            ],
+          ),
+          Switch(
+            value: _shareToChat,
+            activeColor: _primaryBlue,
+            onChanged: (v) => setState(() => _shareToChat = v),
+          ),
+        ],
+      ),
     );
   }
 
@@ -698,6 +731,14 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
         longitude: _selectedLng,
         status: 'Pendiente',
       );
+
+      if (_shareToChat) {
+        try {
+          final chatMsg = '🚨 [ALERTA OPERATIVA]\nTipo: $type | Prioridad: $priority\nUbicación: $location\nDescripción: ${desc.isNotEmpty ? desc : 'Sin descripción'}\n${_selectedDeviceId != null ? '📹 Cámara vinculada ID: $_selectedDeviceId' : ''}';
+          await ApiService.sendMessage(chatMsg);
+        } catch (_) {}
+      }
+
       if (!mounted) return;
       setState(() => _submitting = false);
 

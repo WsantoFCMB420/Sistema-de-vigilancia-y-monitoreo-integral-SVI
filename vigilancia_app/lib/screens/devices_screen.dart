@@ -16,6 +16,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
   List<dynamic> _devices = [];
   bool _loading = true;
   String? _error;
+  bool _isGridMode = true; // true = Mosaico (Grid), false = Lista (List)
 
   static const Color _primaryBlue = Color(0xFF1A5DC8);
   static const Color _dangerColor = Color(0xFFE53935);
@@ -84,8 +85,8 @@ class _DevicesScreenState extends State<DevicesScreen> {
     final streamUrlCtrl = TextEditingController();
     final ipCtrl        = TextEditingController();
     final portCtrl      = TextEditingController(text: '554');
-    final latCtrl       = TextEditingController(text: '4.7110');
-    final lngCtrl       = TextEditingController(text: '-74.0721');
+    final latCtrl       = TextEditingController(text: '5.3114');
+    final lngCtrl       = TextEditingController(text: '-73.8155');
     String selectedStatus = 'Activo';
     String selectedType   = 'camera';
     String cameraSource   = 'local';
@@ -112,7 +113,6 @@ class _DevicesScreenState extends State<DevicesScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Handle
                 Center(
                   child: Container(
                     width: 40, height: 4,
@@ -149,7 +149,6 @@ class _DevicesScreenState extends State<DevicesScreen> {
                 ),
                 const SizedBox(height: 14),
 
-                // Tipo de dispositivo
                 Text('TIPO DE DISPOSITIVO *',
                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
                         color: _c.label, letterSpacing: 0.8)),
@@ -178,7 +177,6 @@ class _DevicesScreenState extends State<DevicesScreen> {
                 ),
                 const SizedBox(height: 14),
 
-                // Si es cámara, campos de video y red
                 if (selectedType == 'camera') ...[
                   Text('FUENTE DE VIDEO *',
                       style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
@@ -216,7 +214,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
                         border: Border.all(color: _primaryBlue.withValues(alpha: 0.25)),
                       ),
                       child: Text(
-                        'Usará la webcam del portátil o una cámara USB conectada a este equipo. Si hay varias, podrás elegirla en el visor.',
+                        'Usará la webcam del portátil o una cámara USB conectada a este equipo.',
                         style: TextStyle(fontSize: 12, color: _c.text, height: 1.35),
                       ),
                     )
@@ -301,7 +299,6 @@ class _DevicesScreenState extends State<DevicesScreen> {
                   const SizedBox(height: 14),
                 ],
 
-                // Descripción / Ubicación
                 Text('UBICACIÓN / DESCRIPCIÓN *',
                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
                         color: _c.label, letterSpacing: 0.8)),
@@ -313,7 +310,6 @@ class _DevicesScreenState extends State<DevicesScreen> {
                 ),
                 const SizedBox(height: 14),
 
-                // Coordenadas (Latitud / Longitud para el Mapa)
                 Row(
                   children: [
                     Expanded(
@@ -328,7 +324,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
                             controller: latCtrl,
                             keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
                             style: TextStyle(fontSize: 13, color: _c.text),
-                            decoration: _inputDeco('4.7110'),
+                            decoration: _inputDeco('5.3114'),
                           ),
                         ],
                       ),
@@ -346,7 +342,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
                             controller: lngCtrl,
                             keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
                             style: TextStyle(fontSize: 13, color: _c.text),
-                            decoration: _inputDeco('-74.0721'),
+                            decoration: _inputDeco('-73.8155'),
                           ),
                         ],
                       ),
@@ -355,7 +351,6 @@ class _DevicesScreenState extends State<DevicesScreen> {
                 ),
                 const SizedBox(height: 14),
 
-                // Estado
                 Text('ESTADO INICIAL',
                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
                         color: _c.label, letterSpacing: 0.8)),
@@ -445,6 +440,255 @@ class _DevicesScreenState extends State<DevicesScreen> {
                             child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                         : const Icon(Icons.save_rounded, size: 18),
                     label: Text(saving ? 'Guardando...' : 'Guardar Dispositivo',
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _primaryBlue,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      elevation: 0,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Editar dispositivo ─────────────────────────────────────────
+  void _showEditDeviceDialog(dynamic device) {
+    final titleCtrl     = TextEditingController(text: device['title'] ?? '');
+    final subtitleCtrl  = TextEditingController(text: device['subtitle'] ?? '');
+    final streamUrlCtrl = TextEditingController(text: device['stream_url'] ?? '');
+    final ipCtrl        = TextEditingController(text: device['ip_address'] ?? '');
+    final portCtrl      = TextEditingController(text: '${device['port'] ?? 554}');
+    String selectedStatus = device['status'] ?? 'Activo';
+    String selectedType   = device['device_type'] ?? 'camera';
+    bool isPtz = device['is_ptz'] == true || device['is_ptz'] == 1;
+    bool saving = false;
+    String? formError;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => Container(
+          decoration: BoxDecoration(
+            color: _c.sheet,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: EdgeInsets.fromLTRB(
+            24, 20, 24,
+            MediaQuery.of(ctx).viewInsets.bottom + 24,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(children: [
+                  Container(
+                    width: 36, height: 36,
+                    decoration: BoxDecoration(
+                      color: _primaryBlue.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.edit_rounded, color: _primaryBlue, size: 20),
+                  ),
+                  const SizedBox(width: 10),
+                  Text('Editar Dispositivo',
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _c.text)),
+                ]),
+                const SizedBox(height: 18),
+
+                Text('NOMBRE DEL DISPOSITIVO *',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
+                        color: _c.label, letterSpacing: 0.8)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: titleCtrl,
+                  style: TextStyle(fontSize: 14, color: _c.text),
+                  decoration: _inputDeco('Ej: Cámara Perimetral Norte 01'),
+                ),
+                const SizedBox(height: 14),
+
+                Text('UBICACIÓN / DESCRIPCIÓN *',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
+                        color: _c.label, letterSpacing: 0.8)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: subtitleCtrl,
+                  style: TextStyle(fontSize: 14, color: _c.text),
+                  decoration: _inputDeco('Ej: Sector A, Puerta Principal'),
+                ),
+                const SizedBox(height: 14),
+
+                if (selectedType == 'camera') ...[
+                  Text('URL DEL STREAM (RTSP / HTTP)',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
+                          color: _c.label, letterSpacing: 0.8)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: streamUrlCtrl,
+                    style: TextStyle(fontSize: 13, color: _c.text),
+                    decoration: _inputDeco('rtsp://192.168.1.100:554/live/ch0'),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('DIRECCIÓN IP',
+                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
+                                    color: _c.label, letterSpacing: 0.8)),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: ipCtrl,
+                              style: TextStyle(fontSize: 13, color: _c.text),
+                              decoration: _inputDeco('192.168.1.100'),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('PUERTO',
+                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
+                                    color: _c.label, letterSpacing: 0.8)),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: portCtrl,
+                              keyboardType: TextInputType.number,
+                              style: TextStyle(fontSize: 13, color: _c.text),
+                              decoration: _inputDeco('554'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: _c.input,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _c.border),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.gamepad_rounded, color: _primaryBlue, size: 20),
+                            const SizedBox(width: 10),
+                            Text('Soporte Pan-Tilt-Zoom (PTZ)',
+                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _c.text)),
+                          ],
+                        ),
+                        Switch(
+                          value: isPtz,
+                          activeThumbColor: _primaryBlue,
+                          onChanged: (v) => setSheet(() => isPtz = v),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                ],
+
+                Text('ESTADO',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
+                        color: _c.label, letterSpacing: 0.8)),
+                const SizedBox(height: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: _c.input,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _c.border),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: DropdownButton<String>(
+                    value: selectedStatus,
+                    isExpanded: true,
+                    dropdownColor: _c.card,
+                    underline: const SizedBox(),
+                    style: TextStyle(fontSize: 14, color: _c.text),
+                    items: ['Activo', 'Inactivo', 'Mantenimiento']
+                        .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                        .toList(),
+                    onChanged: (v) => setSheet(() => selectedStatus = v!),
+                  ),
+                ),
+                if (formError != null) ...[
+                  const SizedBox(height: 8),
+                  Text(formError!, style: const TextStyle(color: _dangerColor, fontSize: 13)),
+                ],
+                const SizedBox(height: 22),
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: saving ? null : () async {
+                      final name = titleCtrl.text.trim();
+                      if (name.isEmpty) {
+                        setSheet(() => formError = 'Ingresa un nombre para el dispositivo.');
+                        return;
+                      }
+                      setSheet(() { saving = true; formError = null; });
+                      try {
+                        await ApiService.updateDevice(
+                          device['id'],
+                          title: name,
+                          subtitle: subtitleCtrl.text.trim(),
+                          status: selectedStatus,
+                          streamUrl: streamUrlCtrl.text.trim(),
+                          ipAddress: ipCtrl.text.trim(),
+                          port: int.tryParse(portCtrl.text.trim()),
+                          isPtz: isPtz,
+                          deviceType: selectedType,
+                        );
+                        if (!ctx.mounted) return;
+                        Navigator.pop(ctx);
+                        _loadDevices();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Dispositivo actualizado correctamente'),
+                            backgroundColor: Color(0xFF1A5DC8),
+                          ),
+                        );
+                      } catch (e) {
+                        setSheet(() => saving = false);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent),
+                        );
+                      }
+                    },
+                    icon: saving
+                        ? const SizedBox(width: 18, height: 18,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : const Icon(Icons.save_rounded, size: 18),
+                    label: Text(saving ? 'Guardando...' : 'Actualizar Dispositivo',
                         style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _primaryBlue,
@@ -555,6 +799,72 @@ class _DevicesScreenState extends State<DevicesScreen> {
     }
   }
 
+  Widget _buildDeviceItem(dynamic d, bool isMultiColumn) {
+    return Dismissible(
+      key: Key('device_${d['id']}'),
+      direction: isMultiColumn
+          ? DismissDirection.endToStart
+          : DismissDirection.none,
+      onDismissed: (_) => _deleteDevice(d),
+      confirmDismiss: (_) async {
+        final confirm = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Text('¿Eliminar dispositivo?', style: TextStyle(fontWeight: FontWeight.w700)),
+            content: Text('Se eliminará "${d['title']}" permanentemente.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(backgroundColor: _dangerColor, foregroundColor: Colors.white),
+                child: const Text('Eliminar'),
+              ),
+            ],
+          ),
+        );
+        return confirm ?? false;
+      },
+      background: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: _dangerColor,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.delete_outline_rounded, color: Colors.white, size: 26),
+            SizedBox(height: 4),
+            Text('Eliminar', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+          ],
+        ),
+      ),
+      child: DeviceCard(
+        title:     d['title']    ?? '',
+        subtitle:  d['subtitle'] ?? '',
+        status:    d['status']   ?? 'Activo',
+        imageUrl:  d['imageUrl'] ?? '',
+        isPtz:     d['is_ptz'] == true || d['is_ptz'] == 1,
+        streamUrl: d['stream_url'] ?? '',
+        onTap: () {
+          Navigator.pushNamed(
+            context,
+            AppRoutes.cameraView,
+            arguments: d,
+          );
+        },
+        onDelete: () => _deleteDevice(d),
+        onEdit: () => _showEditDeviceDialog(d),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -597,95 +907,28 @@ class _DevicesScreenState extends State<DevicesScreen> {
                           ? _buildEmptyState()
                           : RefreshIndicator(
                               onRefresh: _loadDevices,
-                              child: LayoutBuilder(
-                                builder: (ctx, constraints) {
-                                  final columns = Breakpoints.deviceColumns(context);
-                                  return GridView.builder(
-                                padding: const EdgeInsets.symmetric(horizontal: 20),
-                                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: columns,
-                                  mainAxisExtent: 96,
-                                  crossAxisSpacing: 12,
-                                  mainAxisSpacing: 4,
-                                ),
-                                itemCount: _devices.length,
-                                itemBuilder: (ctx, i) {
-                                  final d = _devices[i];
-                                  return Dismissible(
-                                    key: Key('device_${d['id']}'),
-                                    direction: columns == 1
-                                        ? DismissDirection.endToStart
-                                        : DismissDirection.none,
-                                    onDismissed: (_) => _deleteDevice(d),
-                                    confirmDismiss: (_) async {
-                                      final confirm = await showDialog<bool>(
-                                        context: context,
-                                        builder: (ctx) => AlertDialog(
-                                          shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(16)),
-                                          title: const Text('¿Eliminar dispositivo?',
-                                              style: TextStyle(fontWeight: FontWeight.w700)),
-                                          content: Text('Se eliminará "${d['title']}" permanentemente.'),
-                                          actions: [
-                                            TextButton(
-                                              onPressed: () => Navigator.pop(ctx, false),
-                                              child: const Text('Cancelar'),
-                                            ),
-                                            ElevatedButton(
-                                              onPressed: () => Navigator.pop(ctx, true),
-                                              style: ElevatedButton.styleFrom(
-                                                  backgroundColor: _dangerColor,
-                                                  foregroundColor: Colors.white),
-                                              child: const Text('Eliminar'),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                      return confirm ?? false;
-                                    },
-                                    background: Container(
-                                      margin: const EdgeInsets.only(bottom: 12),
-                                      decoration: BoxDecoration(
-                                        color: _dangerColor,
-                                        borderRadius: BorderRadius.circular(14),
-                                      ),
-                                      alignment: Alignment.centerRight,
-                                      padding: const EdgeInsets.only(right: 20),
-                                      child: const Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          Icon(Icons.delete_outline_rounded,
-                                              color: Colors.white, size: 26),
-                                          SizedBox(height: 4),
-                                          Text('Eliminar',
-                                              style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.w600)),
-                                        ],
-                                      ),
-                                    ),
-                                    child: DeviceCard(
-                                      title:     d['title']    ?? '',
-                                      subtitle:  d['subtitle'] ?? '',
-                                      status:    d['status']   ?? 'Activo',
-                                      imageUrl:  d['imageUrl'] ?? '',
-                                      isPtz:     d['is_ptz'] == true || d['is_ptz'] == 1,
-                                      streamUrl: d['stream_url'] ?? '',
-                                      onTap: () {
-                                        Navigator.pushNamed(
-                                          context,
-                                          AppRoutes.cameraView,
-                                          arguments: d,
+                              child: _isGridMode
+                                  ? LayoutBuilder(
+                                      builder: (ctx, constraints) {
+                                        final columns = Breakpoints.deviceColumns(context);
+                                        return GridView.builder(
+                                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                            crossAxisCount: columns,
+                                            mainAxisExtent: 96,
+                                            crossAxisSpacing: 12,
+                                            mainAxisSpacing: 4,
+                                          ),
+                                          itemCount: _devices.length,
+                                          itemBuilder: (ctx, i) => _buildDeviceItem(_devices[i], columns > 1),
                                         );
                                       },
-                                      onDelete: columns > 1 ? () => _deleteDevice(d) : null,
+                                    )
+                                  : ListView.builder(
+                                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                                      itemCount: _devices.length,
+                                      itemBuilder: (ctx, i) => _buildDeviceItem(_devices[i], false),
                                     ),
-                                  );
-                                },
-                                  );
-                                },
-                              ),
                             ),
             ),
           ],
@@ -812,16 +1055,37 @@ class _DevicesScreenState extends State<DevicesScreen> {
             ),
           ],
         ),
-        GestureDetector(
-          onTap: _showAddDeviceDialog,
-          child: Container(
-            width: 36, height: 36,
-            decoration: BoxDecoration(
-              color: _primaryBlue,
-              borderRadius: BorderRadius.circular(10),
+        Row(
+          children: [
+            // View Mode Toggle (Grid / Mosaico vs List / Lista)
+            GestureDetector(
+              onTap: () => setState(() => _isGridMode = !_isGridMode),
+              child: Container(
+                width: 36, height: 36,
+                decoration: BoxDecoration(
+                  color: _primaryBlue.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  _isGridMode ? Icons.view_list_rounded : Icons.grid_view_rounded,
+                  color: _primaryBlue,
+                  size: 20,
+                ),
+              ),
             ),
-            child: const Icon(Icons.add_rounded, color: Colors.white, size: 20),
-          ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: _showAddDeviceDialog,
+              child: Container(
+                width: 36, height: 36,
+                decoration: BoxDecoration(
+                  color: _primaryBlue,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.add_rounded, color: Colors.white, size: 20),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -861,36 +1125,45 @@ class _DevicesScreenState extends State<DevicesScreen> {
             ),
           ),
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              children: _allModules.map((mod) {
-                final isCurrent = mod.route == AppRoutes.devices;
-                return ListTile(
-                  leading: Container(
-                    width: 38, height: 38,
-                    decoration: BoxDecoration(
-                      color: isCurrent ? mod.color : mod.color.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(mod.icon, color: isCurrent ? Colors.white : mod.color, size: 20),
-                  ),
-                  title: Text(mod.label,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
-                        color: isCurrent ? _primaryBlue : _c.text,
-                      )),
-                  trailing: isCurrent
-                      ? Container(
-                          width: 6, height: 6,
-                          decoration: BoxDecoration(color: _primaryBlue, shape: BoxShape.circle))
-                      : null,
-                  onTap: () {
-                    Navigator.pop(context);
-                    if (!isCurrent) Navigator.pushNamed(context, mod.route);
-                  },
+            child: FutureBuilder<bool>(
+              future: SessionService.isAdmin(),
+              builder: (context, snapshot) {
+                final isAdmin = snapshot.data ?? false;
+                final visibleModules = _allModules
+                    .where((mod) => mod.route != AppRoutes.admin || isAdmin)
+                    .toList();
+                return ListView(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  children: visibleModules.map((mod) {
+                    final isCurrent = mod.route == AppRoutes.devices;
+                    return ListTile(
+                      leading: Container(
+                        width: 38, height: 38,
+                        decoration: BoxDecoration(
+                          color: isCurrent ? mod.color : mod.color.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(mod.icon, color: isCurrent ? Colors.white : mod.color, size: 20),
+                      ),
+                      title: Text(mod.label,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
+                            color: isCurrent ? _primaryBlue : _c.text,
+                          )),
+                      trailing: isCurrent
+                          ? Container(
+                              width: 6, height: 6,
+                              decoration: BoxDecoration(color: _primaryBlue, shape: BoxShape.circle))
+                          : null,
+                      onTap: () {
+                        Navigator.pop(context);
+                        if (!isCurrent) Navigator.pushNamed(context, mod.route);
+                      },
+                    );
+                  }).toList(),
                 );
-              }).toList(),
+              },
             ),
           ),
           const Divider(height: 1),
