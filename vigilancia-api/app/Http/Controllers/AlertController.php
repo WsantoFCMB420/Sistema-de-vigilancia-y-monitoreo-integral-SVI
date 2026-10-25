@@ -64,6 +64,18 @@ class AlertController extends Controller
 
         $alert->load(['user:id,name', 'device:id,title']);
 
+        // Publicar automáticamente en la tabla messages (canal de seguridad/comunicación)
+        $deviceName = optional($alert->device)->title;
+        $deviceText = $deviceName ? " | Cámara/Dispositivo: {$deviceName}" : "";
+        $messageText = "🚨 [ALERTA OPERATIVA] Tipo: {$alert->type} | Prioridad: {$alert->priority} | Ubicación: {$alert->location}{$deviceText}";
+        if (!empty($alert->description)) {
+            $messageText .= " | Detalle: {$alert->description}";
+        }
+
+        $request->user()->messages()->create([
+            'text' => $messageText,
+        ]);
+
         return response()->json([
             'message' => 'Alerta emitida correctamente',
             'alert'   => [

@@ -10,9 +10,6 @@ class DeviceController extends Controller
     // ── GET /devices ───────────────────────────────────────────────
     public function index(Request $request)
     {
-        if ($request->user()->role === 'admin') {
-            return response()->json(Device::latest()->get());
-        }
         return response()->json(Device::where('user_id', $request->user()->id)->latest()->get());
     }
 
@@ -178,7 +175,7 @@ class DeviceController extends Controller
 
     private function checkAccess(Request $request, Device $device)
     {
-        if ($request->user()->role !== 'admin' && $device->user_id && $device->user_id !== $request->user()->id) {
+        if ($request->user()->role !== 'admin' && $device->user_id !== $request->user()->id) {
             return response()->json(['message' => 'No autorizado'], 403);
         }
         return null;
