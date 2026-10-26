@@ -17,13 +17,15 @@ import 'screens/profile_screen.dart';
 import 'services/api_service.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_controller.dart';
+import 'widgets/app_shell.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
-  final token = prefs.getString('auth_token');
+  SessionService.init(prefs);
+  final token = SessionService.cachedToken;
   await themeController.load();
 
   ApiService.onUnauthorized = () async {
@@ -39,6 +41,9 @@ void main() async {
 }
 
 // ── Servicio de sesión (disponible globalmente) ───────────────────
+/// Los datos de la sesión se guardan en SharedPreferences y además se
+/// mantienen en memoria, así cada pantalla los lee al instante sin esperar
+/// al almacenamiento.
 class SessionService {
   static const _tokenKey     = 'auth_token';
   static const _userNameKey  = 'user_name';
@@ -46,6 +51,25 @@ class SessionService {
   static const _userRoleKey  = 'user_role';
   static const _userIdKey    = 'user_id';
   static bool expiredNotice = false;
+
+  static String? _token;
+  static String _name = 'Usuario';
+  static String _email = '';
+  static String _role = 'viewer';
+  static int _id = 0;
+
+  /// Carga la sesión guardada en memoria (se llama una vez al iniciar).
+  static void init(SharedPreferences prefs) {
+    _token = prefs.getString(_tokenKey);
+    _name = prefs.getString(_userNameKey) ?? 'Usuario';
+    _email = prefs.getString(_userEmailKey) ?? '';
+    _role = prefs.getString(_userRoleKey) ?? 'viewer';
+    _id = prefs.getInt(_userIdKey) ?? 0;
+  }
+
+  static String? get cachedToken => _token;
+  static String get cachedRole => _role;
+  static int get cachedUserId => _id;
 
   /// Guarda el token y datos del usuario tras login exitoso
   static Future<void> saveSession({
@@ -55,6 +79,11 @@ class SessionService {
     required String role,
     required int    userId,
   }) async {
+    _token = token;
+    _name = name;
+    _email = email;
+    _role = role;
+    _id = userId;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_tokenKey, token);
     await prefs.setString(_userNameKey, name);
@@ -63,49 +92,30 @@ class SessionService {
     await prefs.setInt(_userIdKey, userId);
   }
 
-  /// Recupera el token almacenado
-  static Future<String?> getToken() async {
+  /// Actualiza el nombre guardado (tras editar el perfil)
+  static Future<void> updateName(String name) async {
+    _name = name;
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_tokenKey);
+    await prefs.setString(_userNameKey, name);
   }
 
-  /// Recupera nombre del usuario
-  static Future<String> getUserName() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_userNameKey) ?? 'Usuario';
-  }
+  static Future<String?> getToken() async => _token;
+  static Future<String> getUserName() async => _name;
+  static Future<String> getUserEmail() async => _email;
+  static Future<String> getUserRole() async => _role;
+  static Future<int> getUserId() async => _id;
 
-  /// Recupera email del usuario
-  static Future<String> getUserEmail() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_userEmailKey) ?? 'correo@ejemplo.com';
-  }
+  static Future<bool> isAdmin() async => _role == 'admin';
 
-  /// Recupera rol del usuario
-  static Future<String> getUserRole() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_userRoleKey) ?? 'viewer';
-  }
-
-  /// Recupera ID del usuario
-  static Future<int> getUserId() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getInt(_userIdKey) ?? 0;
-  }
-
-  /// Verifica si el usuario es admin
-  static Future<bool> isAdmin() async {
-    return (await getUserRole()) == 'admin';
-  }
-
-  /// Verifica si el usuario es operador o admin
-  static Future<bool> canOperate() async {
-    final role = await getUserRole();
-    return role == 'admin' || role == 'operator';
-  }
+  static Future<bool> canOperate() async => _role == 'admin' || _role == 'operator';
 
   /// Cierra sesión y limpia el almacenamiento (conserva el tema)
   static Future<void> logout() async {
+    _token = null;
+    _name = 'Usuario';
+    _email = '';
+    _role = 'viewer';
+    _id = 0;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
     await prefs.remove(_userNameKey);
@@ -115,10 +125,7 @@ class SessionService {
   }
 
   /// Verifica si hay sesión activa
-  static Future<bool> isLoggedIn() async {
-    final token = await getToken();
-    return token != null && token.isNotEmpty;
-  }
+  static Future<bool> isLoggedIn() async => _token != null && _token!.isNotEmpty;
 }
 
 // ── App principal ─────────────────────────────────────────────────
@@ -217,50 +224,54 @@ class AuthGuard extends StatefulWidget {
 }
 
 class _AuthGuardState extends State<AuthGuard> {
-  bool _checking = true;
-  bool _authenticated = false;
+  /// null = permitido; si no, la ruta a la que se debe redirigir.
+  String? _redirectTo;
+  String? _routeName;
+  bool _resolved = false;
 
   @override
-  void initState() {
-    super.initState();
-    _checkAuth();
-  }
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_resolved) return;
+    _resolved = true;
+    _routeName = ModalRoute.of(context)?.settings.name;
 
-  Future<void> _checkAuth() async {
-    final loggedIn = await SessionService.isLoggedIn();
-    if (!mounted) return;
-    if (!loggedIn) {
-      Navigator.pushNamedAndRemoveUntil(
-          context, AppRoutes.login, (_) => false);
+    // Todo se decide con la sesión en memoria: sin esperas ni pantallas de carga.
+    final token = SessionService.cachedToken;
+    if (token == null || token.isEmpty) {
+      _redirectTo = AppRoutes.login;
+    } else if (!RoleAccess.canAccess(_routeName, SessionService.cachedRole)) {
+      // El visitante no entra a Reportes, IA Hub ni Admin aunque escriba la ruta.
+      _redirectTo = AppRoutes.dashboard;
+    }
+
+    if (_redirectTo != null) {
+      final target = _redirectTo!;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (target == AppRoutes.dashboard) {
+          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+            const SnackBar(
+              content: Text('Tu rol no tiene acceso a ese módulo.'),
+              backgroundColor: Color(0xFFE53935),
+            ),
+          );
+        }
+        Navigator.pushNamedAndRemoveUntil(context, target, (_) => false);
+      });
       return;
     }
 
-    final valid = await ApiService.validateSession();
-    if (!mounted) return;
-    if (!valid) {
-      SessionService.expiredNotice = true;
-      await SessionService.logout();
-      if (!mounted) return;
-      Navigator.pushNamedAndRemoveUntil(
-          context, AppRoutes.login, (_) => false);
-      return;
-    }
-
-    setState(() {
-      _authenticated = true;
-      _checking = false;
-    });
+    // El token se valida con el servidor en segundo plano. Si ya no sirve,
+    // ApiService cierra la sesión y lleva al login.
+    ApiService.validateSession();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_checking) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(color: Color(0xFF1A5DC8)),
-        ),
-      );
+    if (_redirectTo != null) {
+      return const Scaffold(body: SizedBox.shrink());
     }
-    return _authenticated ? widget.child : const SizedBox.shrink();
+    return AppFrame(currentRoute: _routeName, child: widget.child);
   }
 }

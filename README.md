@@ -78,3 +78,52 @@ php artisan serve
 ```
 
 El `seed` crea usuarios de ejemplo con distintos roles (administrador, operadores y viewer) directamente en la base de datos local, útiles para probar los distintos niveles de permisos del sistema.
+
+## Roles y permisos en la app
+
+| Módulo | Admin | Operador | Visitante |
+|---|---|---|---|
+| Dashboard, Mapa, Cámaras, Dispositivos, Alertas, Comunicación, Perfil | Sí | Sí | Sí |
+| Botón "Emitir alerta" y "Vigilancia en vivo" del dashboard | Sí | Sí | No |
+| Reportes, IA Hub | Sí | Sí | No |
+| Admin (usuarios y roles) | Sí | No | No |
+
+- Cada usuario ve en Dispositivos, Mapa y Cámaras **solo los dispositivos que registró**. El admin ve todos (con el nombre de quien lo registró).
+- Las alertas son comunitarias: todos las ven en el mapa. Cambiar su estado es de admin/operador; un visitante solo puede eliminar las suyas.
+- La app bloquea las rutas no permitidas aunque se escriban en la barra del navegador, y el backend responde 403 en `/api/reports` para el visitante.
+
+## Desplegar la actualización en alwaysdata
+
+1. **API (Laravel):** subir `app/`, `routes/` y `database/migrations/` y ejecutar en el servidor:
+   ```bash
+   php artisan migrate --force
+   php artisan optimize:clear
+   ```
+2. **Web (Flutter):**
+   ```bash
+   cd vigilancia_app
+   flutter pub get
+   flutter build web --release --base-href /SVI/
+   ```
+   Subir el contenido de `build/web/` a la carpeta `SVI/` del sitio.
+3. **APK:**
+   ```bash
+   flutter build apk --release
+   ```
+   El APK queda en `build/app/outputs/flutter-apk/app-release.apk`. Ya incluye los permisos de ubicación para el botón "Mi ubicación".
+
+### Dueños de dispositivos
+
+La migración `2026_09_17_190000` asignó los dispositivos sin dueño al **primer usuario de la tabla**, que no siempre es el admin. Si un visitante ve una cámara que no registró, revisa los dueños en phpMyAdmin:
+
+```sql
+SELECT d.id, d.title, d.user_id, u.name, u.role
+FROM devices d LEFT JOIN users u ON u.id = d.user_id
+ORDER BY d.id;
+```
+
+Y corrige la cámara que corresponda (reemplaza los números):
+
+```sql
+UPDATE devices SET user_id = <id_del_admin> WHERE id = <id_de_la_camara>;
+```

@@ -10,7 +10,23 @@ class DeviceController extends Controller
     // ── GET /devices ───────────────────────────────────────────────
     public function index(Request $request)
     {
-        return response()->json(Device::where('user_id', $request->user()->id)->latest()->get());
+        $user = $request->user();
+        $query = Device::with('user:id,name')->latest();
+
+        // El admin ve todos los dispositivos; los demás solo los suyos.
+        if ($user->role !== 'admin') {
+            $query->where('user_id', $user->id);
+        }
+
+        return response()->json(
+            $query->get()->map(function (Device $d) use ($user) {
+                $row = $d->toArray();
+                $row['owner_name'] = optional($d->user)->name;
+                $row['is_mine']    = (int) $d->user_id === (int) $user->id;
+                unset($row['user']);
+                return $row;
+            })
+        );
     }
 
     // ── GET /devices/{id} ─────────────────────────────────────────
@@ -52,6 +68,7 @@ class DeviceController extends Controller
 
         $validated['status'] = $validated['status'] ?? 'Activo';
         $validated['is_ptz'] = (bool) ($validated['is_ptz'] ?? false);
+
         $validated['user_id'] = $request->user()->id;
 
         $device = Device::create($validated);
@@ -173,11 +190,23 @@ class DeviceController extends Controller
         ]);
     }
 
+    /**
+     * Solo el dueño del dispositivo (o un admin) puede verlo o modificarlo.
+     * Un dispositivo sin dueño queda restringido a administradores.
+     * Se compara como entero porque algunos drivers de MySQL devuelven
+     * las llaves foráneas como texto.
+     */
     private function checkAccess(Request $request, Device $device)
     {
-        if ($request->user()->role !== 'admin' && $device->user_id !== $request->user()->id) {
-            return response()->json(['message' => 'No autorizado'], 403);
+        $user = $request->user();
+        if ($user->role === 'admin') {
+            return null;
         }
+
+        if ($device->user_id === null || (int) $device->user_id !== (int) $user->id) {
+            return response()->json(['message' => 'No tienes acceso a este dispositivo.'], 403);
+        }
+
         return null;
     }
 }

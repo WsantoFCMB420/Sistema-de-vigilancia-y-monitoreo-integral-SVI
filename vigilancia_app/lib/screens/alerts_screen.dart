@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 import '../services/api_service.dart';
 import '../widgets/theme_toggle_button.dart';
 import '../widgets/responsive.dart';
+import '../widgets/app_shell.dart';
 import '../theme/app_colors.dart';
 import '../main.dart';
 
@@ -11,7 +15,8 @@ class AlertsScreen extends StatefulWidget {
   State<AlertsScreen> createState() => _AlertsScreenState();
 }
 
-class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderStateMixin {
+class _AlertsScreenState extends State<AlertsScreen>
+    with SingleTickerProviderStateMixin {
   // ── Paleta idéntica al proyecto ───────────────────────────────────────────
   static const Color _primaryBlue = Color(0xFF1A5DC8);
   static const Color _dangerColor = Color(0xFFE53935);
@@ -27,12 +32,19 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
   // Estado del formulario de emisión
   int _selectedType = 0;
   int _selectedPriority = 2;
-  final TextEditingController _descCtrl     = TextEditingController();
-  final TextEditingController _locationCtrl = TextEditingController(text: 'Acceso Perimetral 1');
+  final TextEditingController _descCtrl = TextEditingController();
+  final TextEditingController _locationCtrl =
+      TextEditingController(text: 'Acceso Perimetral 1');
   int? _selectedDeviceId;
-  double _selectedLat = 4.7110;
-  double _selectedLng = -74.0721;
+  // Centro del Valle de Ubaté (Ubaté, Cundinamarca)
+  double _selectedLat = 5.3114;
+  double _selectedLng = -73.8155;
   bool _submitting = false;
+
+  // Mapa para elegir la ubicación de la alerta
+  final MapController _pickerMap = MapController();
+  bool _pickerReady = false;
+  bool _locating = false;
 
   // Lista de dispositivos para vincular
   List<dynamic> _devices = [];
@@ -42,14 +54,21 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
   List<dynamic> _alerts = [];
   bool _loadingAlerts = true;
   String? _alertsError;
-  String _filterStatus = 'Todas'; // 'Todas', 'Pendiente', 'En atención', 'Resuelta'
+  String _filterStatus =
+      'Todas'; // 'Todas', 'Pendiente', 'En atención', 'Resuelta'
   bool _shareToChat = true;
+
+  bool _isCheckingRole = true;
+  bool _canManage = false;
 
   final List<_IncidentType> _types = [
     _IncidentType('Seguridad', Icons.shield_rounded, const Color(0xFF1A5DC8)),
-    _IncidentType('Incendio', Icons.local_fire_department_rounded, const Color(0xFFFF6D00)),
-    _IncidentType('Médico', Icons.medical_services_rounded, const Color(0xFF43A047)),
-    _IncidentType('Técnico', Icons.engineering_rounded, const Color(0xFF7B1FA2)),
+    _IncidentType('Incendio', Icons.local_fire_department_rounded,
+        const Color(0xFFFF6D00)),
+    _IncidentType(
+        'Médico', Icons.medical_services_rounded, const Color(0xFF43A047)),
+    _IncidentType(
+        'Técnico', Icons.engineering_rounded, const Color(0xFF7B1FA2)),
   ];
 
   final List<_Priority> _priorities = [
@@ -61,8 +80,18 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _checkRole();
     _loadInitialData();
+  }
+
+  Future<void> _checkRole() async {
+    final role = await SessionService.getUserRole();
+    if (!mounted) return;
+    setState(() {
+      _canManage = (role == 'admin' || role == 'operator');
+      _tabController = TabController(length: _canManage ? 2 : 1, vsync: this);
+      _isCheckingRole = false;
+    });
   }
 
   Future<void> _loadInitialData() async {
@@ -85,11 +114,13 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
     }
   }
 
-  Future<void> _loadAlerts() async {
-    setState(() {
-      _loadingAlerts = true;
-      _alertsError = null;
-    });
+  Future<void> _loadAlerts({bool silent = false}) async {
+    if (!silent) {
+      setState(() {
+        _loadingAlerts = true;
+        _alertsError = null;
+      });
+    }
     try {
       final list = await ApiService.getAlerts();
       if (!mounted) return;
@@ -109,6 +140,7 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
   @override
   void dispose() {
     _tabController.dispose();
+    _pickerMap.dispose();
     _descCtrl.dispose();
     _locationCtrl.dispose();
     super.dispose();
@@ -116,159 +148,78 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
+    if (_isCheckingRole) {
+      return Scaffold(
+        backgroundColor: _bgColor,
+        body:
+            const Center(child: CircularProgressIndicator(color: _primaryBlue)),
+      );
+    }
     return Scaffold(
       backgroundColor: _bgColor,
       drawer: _buildDrawer(),
       appBar: AppBar(
         backgroundColor: _cardColor,
-        elevation: 1,
-        shadowColor: Colors.black12,
-        leading: Builder(
-          builder: (ctx) => IconButton(
-            icon: Icon(Icons.menu_rounded, color: _textColor, size: 22),
-            onPressed: () => Scaffold.of(ctx).openDrawer(),
-          ),
-        ),
-        title: Text(
-          'Centro de Alertas',
-          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _textColor),
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        automaticallyImplyLeading: false,
+        leading: isWideLayout(context)
+            ? null
+            : const Padding(padding: EdgeInsets.only(left: 8), child: AppMenuButton()),
+        leadingWidth: isWideLayout(context) ? 0 : 56,
+        titleSpacing: isWideLayout(context) ? 28 : 8,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Centro de alertas',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _textColor)),
+            Text(_canManage ? 'Emite, atiende y cierra incidentes' : 'Reporta un incidente a la red',
+                style: TextStyle(fontSize: 12, color: _labelColor)),
+          ],
         ),
         actions: [
           const ThemeToggleButton(),
-          const SizedBox(width: 4),
-          GestureDetector(
-            onTap: () => Navigator.pushNamed(context, AppRoutes.profile),
-            child: CircleAvatar(
-              radius: 18,
-              backgroundColor: _primaryBlue.withValues(alpha: 0.15),
-              child: const Icon(Icons.person_rounded, color: _primaryBlue, size: 20),
-            ),
-          ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 6),
+          ProfileMenuButton(showName: isWideLayout(context)),
+          const SizedBox(width: 16),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: _primaryBlue,
-          unselectedLabelColor: _labelColor,
-          indicatorColor: _primaryBlue,
-          indicatorWeight: 3,
-          labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-          tabs: const [
-            Tab(text: 'Emitir Alerta', icon: Icon(Icons.add_alert_rounded, size: 20)),
-            Tab(text: 'Gestión y Ciclo', icon: Icon(Icons.rule_folder_rounded, size: 20)),
-          ],
-        ),
+        bottom: _canManage
+            ? TabBar(
+                controller: _tabController,
+                labelColor: _primaryBlue,
+                unselectedLabelColor: _labelColor,
+                indicatorColor: _primaryBlue,
+                indicatorWeight: 3,
+                labelStyle:
+                    const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                tabs: const [
+                  Tab(
+                      text: 'Emitir Alerta',
+                      icon: Icon(Icons.add_alert_rounded, size: 20)),
+                  Tab(
+                      text: 'Gestión y Ciclo',
+                      icon: Icon(Icons.rule_folder_rounded, size: 20)),
+                ],
+              )
+            : null,
       ),
       body: ResponsiveShell(
-        child: TabBarView(
-          controller: _tabController,
-          children: [
-            _buildEmitTab(),
-            _buildManagementTab(),
-          ],
-        ),
+        child: _canManage
+            ? TabBarView(
+                controller: _tabController,
+                // Sin deslizar entre pestañas: el gesto lo usa el mapa de ubicación.
+                physics: const NeverScrollableScrollPhysics(),
+                children: [
+                  _buildEmitTab(),
+                  _buildManagementTab(),
+                ],
+              )
+            : _buildEmitTab(),
       ),
     );
   }
 
-  Widget _buildDrawer() {
-    const allModules = [
-      _ModuleItem(Icons.dashboard_rounded, 'Dashboard', AppRoutes.dashboard, Color(0xFF1A5DC8)),
-      _ModuleItem(Icons.map_rounded, 'Mapa', AppRoutes.map, Color(0xFF00897B)),
-      _ModuleItem(Icons.videocam_rounded, 'Cámaras', AppRoutes.cameraView, Color(0xFF6D4C41)),
-      _ModuleItem(Icons.devices_rounded, 'Dispositivos', AppRoutes.devices, Color(0xFF5E35B1)),
-      _ModuleItem(Icons.warning_amber_rounded, 'Alertas', AppRoutes.alerts, Color(0xFFE53935)),
-      _ModuleItem(Icons.forum_rounded, 'Comunicación', AppRoutes.communication, Color(0xFF0288D1)),
-      _ModuleItem(Icons.psychology_rounded, 'IA Hub', AppRoutes.iaModule, Color(0xFF7B1FA2)),
-      _ModuleItem(Icons.assessment_rounded, 'Reportes', AppRoutes.reportes, Color(0xFF2E7D32)),
-      _ModuleItem(Icons.admin_panel_settings_rounded, 'Admin', AppRoutes.admin, Color(0xFFAD1457)),
-    ];
-    return Drawer(
-      child: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(20, 50, 20, 24),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF1A5DC8), Color(0xFF0D1B2A)],
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 48, height: 48,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Icon(Icons.shield_rounded, color: Colors.white, size: 28),
-                ),
-                const SizedBox(height: 14),
-                const Text('Sentinel SVI',
-                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
-                const Text('Sistema de Vigilancia Integral',
-                    style: TextStyle(color: Colors.white60, fontSize: 12)),
-              ],
-            ),
-          ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              children: allModules.map((mod) {
-                final isCurrent = mod.route == AppRoutes.alerts;
-                return ListTile(
-                  leading: Container(
-                    width: 38, height: 38,
-                    decoration: BoxDecoration(
-                      color: isCurrent ? mod.color : mod.color.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(mod.icon, color: isCurrent ? Colors.white : mod.color, size: 20),
-                  ),
-                  title: Text(
-                    mod.label,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
-                      color: isCurrent ? _primaryBlue : _textColor,
-                    ),
-                  ),
-                  trailing: isCurrent
-                      ? Container(
-                          width: 6, height: 6,
-                          decoration: BoxDecoration(color: _primaryBlue, shape: BoxShape.circle),
-                        )
-                      : null,
-                  onTap: () {
-                    Navigator.pop(context);
-                    if (!isCurrent) {
-                      Navigator.pushNamed(context, mod.route);
-                    }
-                  },
-                );
-              }).toList(),
-            ),
-          ),
-          const Divider(height: 1),
-          ListTile(
-            leading: const Icon(Icons.logout_rounded, color: _dangerColor),
-            title: const Text('Cerrar sesión', style: TextStyle(color: _dangerColor, fontWeight: FontWeight.w600)),
-            onTap: () async {
-              Navigator.pop(context);
-              await SessionService.logout();
-              if (!context.mounted) return;
-              Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (_) => false);
-            },
-          ),
-          const SizedBox(height: 12),
-        ],
-      ),
-    );
-  }
+  Widget _buildDrawer() => const AppDrawer(currentRoute: AppRoutes.alerts);
 
   // ══════════════════════════════════════════════════════════════════════════
   // TAB 1: EMITIR ALERTA
@@ -284,35 +235,28 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
               children: [
                 _buildHeader(),
                 const SizedBox(height: 20),
-
                 _buildSection('TIPO DE INCIDENTE'),
                 const SizedBox(height: 10),
                 _buildTypeGrid(),
                 const SizedBox(height: 20),
-
                 _buildSection('PRIORIDAD DE RESPUESTA'),
                 const SizedBox(height: 10),
                 _buildPriorityToggle(),
                 const SizedBox(height: 20),
-
                 _buildSection('VINCULAR A CÁMARA O DISPOSITIVO'),
                 const SizedBox(height: 10),
                 _buildDeviceSelector(),
                 const SizedBox(height: 20),
-
                 _buildSection('UBICACIÓN Y COORDENADAS GPS'),
                 const SizedBox(height: 10),
                 _buildMapPicker(),
                 const SizedBox(height: 20),
-
                 _buildSection('DESCRIPCIÓN DE LA SITUACIÓN'),
                 const SizedBox(height: 10),
                 _buildDescriptionField(),
                 const SizedBox(height: 20),
-
                 _buildShareToggle(),
                 const SizedBox(height: 20),
-
                 _buildHighPriorityWarning(),
               ],
             ),
@@ -339,12 +283,15 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
               const Icon(Icons.forum_rounded, color: _primaryBlue, size: 20),
               const SizedBox(width: 10),
               Text('Compartir alerta y cámara en el chat de Comunicación',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _textColor)),
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _textColor)),
             ],
           ),
           Switch(
             value: _shareToChat,
-            activeColor: _primaryBlue,
+            activeThumbColor: _primaryBlue,
             onChanged: (v) => setState(() => _shareToChat = v),
           ),
         ],
@@ -360,7 +307,10 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
         color: _cardColor,
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 3)),
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 3)),
         ],
       ),
       child: Column(
@@ -368,12 +318,17 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
         children: [
           const Text(
             'MÓDULO DE RESPUESTA RÁPIDA',
-            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _primaryBlue, letterSpacing: 0.8),
+            style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: _primaryBlue,
+                letterSpacing: 0.8),
           ),
           const SizedBox(height: 6),
           Text(
             'Emisión de Alerta Operativa',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _textColor),
+            style: TextStyle(
+                fontSize: 15, fontWeight: FontWeight.w700, color: _textColor),
           ),
           const SizedBox(height: 6),
           Text(
@@ -386,7 +341,12 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
   }
 
   Widget _buildSection(String label) {
-    return Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _labelColor, letterSpacing: 0.8));
+    return Text(label,
+        style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: _labelColor,
+            letterSpacing: 0.8));
   }
 
   Widget _buildTypeGrid() {
@@ -416,14 +376,21 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
                 width: selected ? 2 : 1,
               ),
               boxShadow: [
-                BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6, offset: const Offset(0, 2)),
+                BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2)),
               ],
             ),
             child: Row(
               children: [
                 Icon(t.icon, color: selected ? t.color : _labelColor, size: 22),
                 const SizedBox(width: 10),
-                Text(t.label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: selected ? t.color : _textColor)),
+                Text(t.label,
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: selected ? t.color : _textColor)),
               ],
             ),
           ),
@@ -437,7 +404,12 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 6,
+              offset: const Offset(0, 2))
+        ],
       ),
       child: Row(
         children: _priorities.asMap().entries.map((entry) {
@@ -462,7 +434,10 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
                 child: Center(
                   child: Text(
                     p.label,
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: selected ? Colors.white : _labelColor),
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: selected ? Colors.white : _labelColor),
                   ),
                 ),
               ),
@@ -479,7 +454,12 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
         color: _cardColor,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE0E8F5)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 6,
+              offset: const Offset(0, 2))
+        ],
       ),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
       child: _loadingDevices
@@ -487,9 +467,13 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
               padding: EdgeInsets.symmetric(vertical: 12),
               child: Row(
                 children: [
-                  SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                  SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2)),
                   SizedBox(width: 10),
-                  Text('Cargando dispositivos...', style: TextStyle(fontSize: 13, color: _labelColor)),
+                  Text('Cargando dispositivos...',
+                      style: TextStyle(fontSize: 13, color: _labelColor)),
                 ],
               ),
             )
@@ -501,23 +485,34 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
                   children: [
                     Icon(Icons.videocam_outlined, color: _labelColor, size: 20),
                     SizedBox(width: 10),
-                    Text('Alerta General (Sin cámara vinculada)', style: TextStyle(fontSize: 13, color: _labelColor)),
+                    Text('Alerta General (Sin cámara vinculada)',
+                        style: TextStyle(fontSize: 13, color: _labelColor)),
                   ],
                 ),
                 items: [
                   const DropdownMenuItem<int?>(
                     value: null,
-                    child: Text('Ninguna (Alerta general)', style: TextStyle(fontSize: 13)),
+                    child: Text('Ninguna (Alerta general)',
+                        style: TextStyle(fontSize: 13)),
                   ),
                   ..._devices.map((d) {
-                    final isCam = (d['is_ptz'] == true || d['is_ptz'] == 1 || (d['device_type'] ?? '') == 'camera');
+                    final isCam = (d['is_ptz'] == true ||
+                        d['is_ptz'] == 1 ||
+                        (d['device_type'] ?? '') == 'camera');
                     return DropdownMenuItem<int?>(
                       value: d['id'] as int,
                       child: Row(
                         children: [
-                          Icon(isCam ? Icons.videocam_rounded : Icons.devices_rounded, color: _primaryBlue, size: 18),
+                          Icon(
+                              isCam
+                                  ? Icons.videocam_rounded
+                                  : Icons.devices_rounded,
+                              color: _primaryBlue,
+                              size: 18),
                           const SizedBox(width: 8),
-                          Text('${d['title']} ${isCam ? '(Cámara)' : ''}', style: TextStyle(fontSize: 13, color: _textColor)),
+                          Text('${d['title']} ${isCam ? '(Cámara)' : ''}',
+                              style:
+                                  TextStyle(fontSize: 13, color: _textColor)),
                         ],
                       ),
                     );
@@ -527,13 +522,20 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
                   setState(() {
                     _selectedDeviceId = val;
                     if (val != null) {
-                      final found = _devices.firstWhere((d) => d['id'] == val, orElse: () => null);
+                      final found = _devices.firstWhere((d) => d['id'] == val,
+                          orElse: () => null);
                       if (found != null && found['title'] != null) {
-                        _locationCtrl.text = found['subtitle']?.toString().isNotEmpty == true
-                            ? '${found['title']} (${found['subtitle']})'
-                            : found['title'].toString();
-                        if (found['latitude'] != null) _selectedLat = (found['latitude'] as num).toDouble();
-                        if (found['longitude'] != null) _selectedLng = (found['longitude'] as num).toDouble();
+                        _locationCtrl.text =
+                            found['subtitle']?.toString().isNotEmpty == true
+                                ? '${found['title']} (${found['subtitle']})'
+                                : found['title'].toString();
+                        if (found['latitude'] != null && found['longitude'] != null) {
+                          _selectedLat = (found['latitude'] as num).toDouble();
+                          _selectedLng = (found['longitude'] as num).toDouble();
+                          if (_pickerReady) {
+                            _pickerMap.move(LatLng(_selectedLat, _selectedLng), 16);
+                          }
+                        }
                       }
                     }
                   });
@@ -544,79 +546,91 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
   }
 
   Widget _buildMapPicker() {
+    final point = LatLng(_selectedLat, _selectedLng);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         TextField(
           controller: _locationCtrl,
           style: TextStyle(fontSize: 13, color: _textColor),
-          decoration: InputDecoration(
-            hintText: 'Nombre de la ubicación (ej: Pasillo 3, Torre A)',
-            hintStyle: TextStyle(fontSize: 13, color: _labelColor),
-            filled: true,
-            fillColor: _cardColor,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            prefixIcon: const Icon(Icons.place_rounded, color: _dangerColor, size: 20),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE0E8F5))),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE0E8F5))),
+          decoration: const InputDecoration(
+            hintText: 'Nombre de la ubicación (ej: Parque principal, Calle 5)',
+            prefixIcon: Icon(Icons.place_rounded, color: _dangerColor, size: 20),
           ),
         ),
         const SizedBox(height: 10),
         ClipRRect(
-          borderRadius: BorderRadius.circular(14),
-          child: GestureDetector(
-            onPanUpdate: (details) {
-              // Actualiza coordenadas al interactuar con el mapa
-              setState(() {
-                _selectedLat = 4.7110 + (details.localPosition.dy - 80) * 0.0001;
-                _selectedLng = -74.0721 + (details.localPosition.dx - 150) * 0.0001;
-              });
-            },
-            onTapDown: (details) {
-              setState(() {
-                _selectedLat = 4.7110 + (details.localPosition.dy - 80) * 0.0001;
-                _selectedLng = -74.0721 + (details.localPosition.dx - 150) * 0.0001;
-              });
-            },
-            child: SizedBox(
-              height: 150,
-              child: Stack(
-                children: [
-                  Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFF0A1628), Color(0xFF0D2040), Color(0xFF0A1628)],
+          borderRadius: BorderRadius.circular(16),
+          child: SizedBox(
+            height: 260,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: FlutterMap(
+                    mapController: _pickerMap,
+                    options: MapOptions(
+                      initialCenter: point,
+                      initialZoom: 15,
+                      minZoom: 3,
+                      maxZoom: 18,
+                      onMapReady: () => _pickerReady = true,
+                      onTap: (_, latLng) => setState(() {
+                        _selectedLat = latLng.latitude;
+                        _selectedLng = latLng.longitude;
+                      }),
+                      interactionOptions: const InteractionOptions(
+                        flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
                       ),
                     ),
-                    child: CustomPaint(
-                      size: Size.infinite,
-                      painter: _MapGridPainter(),
+                    children: [
+                      TileLayer(
+                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'com.svi.vigilancia',
+                      ),
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: point,
+                            width: 44,
+                            height: 44,
+                            alignment: Alignment.topCenter,
+                            child: const Icon(Icons.location_on_rounded, color: _dangerColor, size: 44),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: Column(
+                    children: [
+                      _pickerBtn(Icons.add_rounded, 'Acercar', () => _pickerZoom(1)),
+                      const SizedBox(height: 6),
+                      _pickerBtn(Icons.remove_rounded, 'Alejar', () => _pickerZoom(-1)),
+                      const SizedBox(height: 10),
+                      _pickerBtn(Icons.my_location_rounded, 'Usar mi ubicación', _useMyLocation,
+                          loading: _locating),
+                    ],
+                  ),
+                ),
+                Positioned(
+                  left: 10,
+                  bottom: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'GPS: ${_selectedLat.toStringAsFixed(5)}, ${_selectedLng.toStringAsFixed(5)}',
+                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
                     ),
                   ),
-                  Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.location_on_rounded, color: Color(0xFFE53935), size: 36),
-                        const SizedBox(height: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.7),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            'GPS: ${_selectedLat.toStringAsFixed(4)}, ${_selectedLng.toStringAsFixed(4)}',
-                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -624,12 +638,86 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
         Row(
           children: [
             Icon(Icons.touch_app_rounded, size: 14, color: _labelColor),
-            SizedBox(width: 6),
-            Expanded(child: Text('Toque o arrastre sobre el radar para ajustar las coordenadas GPS.', style: TextStyle(fontSize: 11, color: _labelColor))),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text('Toca el mapa para marcar dónde ocurre el incidente.',
+                  style: TextStyle(fontSize: 11, color: _labelColor)),
+            ),
           ],
         ),
       ],
     );
+  }
+
+  Widget _pickerBtn(IconData icon, String tooltip, VoidCallback onTap, {bool loading = false}) {
+    return Material(
+      color: _cardColor,
+      elevation: 3,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: Tooltip(
+          message: tooltip,
+          child: SizedBox(
+            width: 38,
+            height: 38,
+            child: Center(
+              child: loading
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : Icon(icon, size: 20, color: icon == Icons.my_location_rounded ? _primaryBlue : _textColor),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _pickerZoom(double delta) {
+    if (!_pickerReady) return;
+    final cam = _pickerMap.camera;
+    _pickerMap.move(cam.center, (cam.zoom + delta).clamp(3.0, 18.0).toDouble());
+  }
+
+  Future<void> _useMyLocation() async {
+    if (_locating) return;
+    setState(() => _locating = true);
+    String? problem;
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        problem = 'Activa la ubicación del dispositivo o del navegador.';
+      } else {
+        var permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission();
+        }
+        if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+          problem = 'Permiso de ubicación denegado.';
+        } else {
+          final pos = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.high,
+              timeLimit: Duration(seconds: 15),
+            ),
+          );
+          if (!mounted) return;
+          setState(() {
+            _selectedLat = pos.latitude;
+            _selectedLng = pos.longitude;
+          });
+          if (_pickerReady) _pickerMap.move(LatLng(pos.latitude, pos.longitude), 17);
+        }
+      }
+    } catch (e) {
+      problem = 'No se pudo obtener la ubicación.';
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+    if (problem != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(problem), backgroundColor: Colors.orange),
+      );
+    }
   }
 
   Widget _buildDescriptionField() {
@@ -638,14 +726,20 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
         color: _cardColor,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFFE0E8F5)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 6,
+              offset: const Offset(0, 2))
+        ],
       ),
       child: TextField(
         controller: _descCtrl,
         maxLines: 3,
         style: TextStyle(fontSize: 13, color: _textColor),
         decoration: InputDecoration(
-          hintText: 'Detalle los hechos observados, personas o vehículos involucrados...',
+          hintText:
+              'Detalle los hechos observados, personas o vehículos involucrados...',
           hintStyle: TextStyle(fontSize: 13, color: _labelColor),
           border: InputBorder.none,
           contentPadding: EdgeInsets.all(14),
@@ -660,7 +754,8 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
       decoration: BoxDecoration(
         color: const Color(0xFFFDECEC),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _dangerColor.withValues(alpha: 0.3), width: 1),
+        border:
+            Border.all(color: _dangerColor.withValues(alpha: 0.3), width: 1),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -671,11 +766,16 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Acción de Alta Prioridad', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _dangerColor)),
+                Text('Acción de Alta Prioridad',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: _dangerColor)),
                 SizedBox(height: 4),
                 Text(
                   'Esta alerta quedará registrada en el ciclo de vida operativo con estado inicial "Pendiente".',
-                  style: TextStyle(fontSize: 12, color: _textColor, height: 1.5),
+                  style:
+                      TextStyle(fontSize: 12, color: _textColor, height: 1.5),
                 ),
               ],
             ),
@@ -691,23 +791,33 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
       decoration: BoxDecoration(
         color: _cardColor,
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 10, offset: const Offset(0, -3)),
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 10,
+              offset: const Offset(0, -3)),
         ],
       ),
       child: ElevatedButton.icon(
         onPressed: _submitting ? null : _emitAlert,
         icon: _submitting
-            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                    color: Colors.white, strokeWidth: 2))
             : const Icon(Icons.campaign_rounded, size: 20),
-        label: Text(_submitting ? 'Emitiendo alerta...' : 'Emitir Alerta Operativa',
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: 0.3)),
+        label: Text(
+            _submitting ? 'Emitiendo alerta...' : 'Emitir Alerta Operativa',
+            style: const TextStyle(
+                fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: 0.3)),
         style: ElevatedButton.styleFrom(
           backgroundColor: _dangerColor,
           foregroundColor: Colors.white,
           elevation: 4,
           shadowColor: _dangerColor.withValues(alpha: 0.4),
           minimumSize: const Size(double.infinity, 52),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
         ),
       ),
     );
@@ -717,7 +827,9 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
     final type = _types[_selectedType].label;
     final priority = _priorities[_selectedPriority].label;
     final desc = _descCtrl.text.trim();
-    final location = _locationCtrl.text.trim().isNotEmpty ? _locationCtrl.text.trim() : 'Punto de incidente';
+    final location = _locationCtrl.text.trim().isNotEmpty
+        ? _locationCtrl.text.trim()
+        : 'Punto de incidente';
 
     setState(() => _submitting = true);
     try {
@@ -730,34 +842,32 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
         latitude: _selectedLat,
         longitude: _selectedLng,
         status: 'Pendiente',
+        // El backend publica el aviso en Comunicación cuando esto es true.
+        shareToChat: _shareToChat,
       );
-
-      if (_shareToChat) {
-        try {
-          final chatMsg = '🚨 [ALERTA OPERATIVA]\nTipo: $type | Prioridad: $priority\nUbicación: $location\nDescripción: ${desc.isNotEmpty ? desc : 'Sin descripción'}\n${_selectedDeviceId != null ? '📹 Cámara vinculada ID: $_selectedDeviceId' : ''}';
-          await ApiService.sendMessage(chatMsg);
-        } catch (_) {}
-      }
 
       if (!mounted) return;
       setState(() => _submitting = false);
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Alerta de tipo "$type" con prioridad "$priority" emitida con éxito.'),
+          content: Text(
+              'Alerta de tipo "$type" con prioridad "$priority" emitida con éxito.'),
           backgroundColor: const Color(0xFF2E7D32),
         ),
       );
       _descCtrl.clear();
-      _loadAlerts();
+      _loadAlerts(silent: true);
 
-      // Cambiar a la pestaña de gestión para ver la alerta emitida
-      _tabController.animateTo(1);
+      // Cambiar a la pestaña de gestión (solo existe para admin y operador)
+      if (_canManage && _tabController.length > 1) _tabController.animateTo(1);
     } catch (e) {
       if (!mounted) return;
       setState(() => _submitting = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al emitir alerta: $e'), backgroundColor: Colors.redAccent),
+        SnackBar(
+            content: Text('Error al emitir alerta: $e'),
+            backgroundColor: Colors.redAccent),
       );
     }
   }
@@ -778,17 +888,22 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
           _buildFilterChips(),
           Expanded(
             child: _loadingAlerts
-                ? const Center(child: CircularProgressIndicator(color: _primaryBlue))
+                ? const Center(
+                    child: CircularProgressIndicator(color: _primaryBlue))
                 : _alertsError != null
                     ? Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.error_outline_rounded, color: _dangerColor, size: 40),
+                            const Icon(Icons.error_outline_rounded,
+                                color: _dangerColor, size: 40),
                             const SizedBox(height: 10),
-                            Text('Error: $_alertsError', style: TextStyle(color: _labelColor)),
+                            Text('Error: $_alertsError',
+                                style: TextStyle(color: _labelColor)),
                             const SizedBox(height: 12),
-                            ElevatedButton(onPressed: _loadAlerts, child: const Text('Reintentar')),
+                            ElevatedButton(
+                                onPressed: _loadAlerts,
+                                child: const Text('Reintentar')),
                           ],
                         ),
                       )
@@ -797,19 +912,28 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.check_circle_outline_rounded, color: const Color(0xFF43A047).withValues(alpha: 0.5), size: 48),
+                                Icon(Icons.check_circle_outline_rounded,
+                                    color: const Color(0xFF43A047)
+                                        .withValues(alpha: 0.5),
+                                    size: 48),
                                 const SizedBox(height: 12),
                                 Text(
-                                  _filterStatus == 'Todas' ? 'Sin alertas registradas' : 'No hay alertas con estado "$_filterStatus"',
-                                  style: TextStyle(color: _labelColor, fontWeight: FontWeight.w600),
+                                  _filterStatus == 'Todas'
+                                      ? 'Sin alertas registradas'
+                                      : 'No hay alertas con estado "$_filterStatus"',
+                                  style: TextStyle(
+                                      color: _labelColor,
+                                      fontWeight: FontWeight.w600),
                                 ),
                               ],
                             ),
                           )
                         : ListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 12),
                             itemCount: filtered.length,
-                            itemBuilder: (ctx, i) => _buildAlertManagementCard(filtered[i]),
+                            itemBuilder: (ctx, i) =>
+                                _buildAlertManagementCard(filtered[i]),
                           ),
           ),
         ],
@@ -884,9 +1008,15 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isCritical ? _dangerColor.withValues(alpha: 0.3) : const Color(0xFFE4EAF5)),
+        border: Border.all(
+            color: isCritical
+                ? _dangerColor.withValues(alpha: 0.3)
+                : const Color(0xFFE4EAF5)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2)),
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2)),
         ],
       ),
       child: Padding(
@@ -898,9 +1028,12 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: isCritical ? const Color(0xFFFDECEC) : _primaryBlue.withValues(alpha: 0.1),
+                    color: isCritical
+                        ? const Color(0xFFFDECEC)
+                        : _primaryBlue.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
@@ -914,15 +1047,20 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
                 ),
                 const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: statusBg,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: statusColor.withValues(alpha: 0.4), width: 0.8),
+                    border: Border.all(
+                        color: statusColor.withValues(alpha: 0.4), width: 0.8),
                   ),
                   child: Text(
                     status,
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: statusColor),
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: statusColor),
                   ),
                 ),
               ],
@@ -936,8 +1074,13 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    alert['location']?.isNotEmpty == true ? alert['location'] : 'Sin ubicación especificada',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _textColor),
+                    alert['location']?.isNotEmpty == true
+                        ? alert['location']
+                        : 'Sin ubicación especificada',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: _textColor),
                   ),
                 ),
               ],
@@ -946,9 +1089,14 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
               const SizedBox(height: 4),
               Row(
                 children: [
-                  const Icon(Icons.videocam_rounded, size: 16, color: _primaryBlue),
+                  const Icon(Icons.videocam_rounded,
+                      size: 16, color: _primaryBlue),
                   const SizedBox(width: 6),
-                  Text('Vinculada a: $deviceName', style: const TextStyle(fontSize: 12, color: _primaryBlue, fontWeight: FontWeight.w500)),
+                  Text('Vinculada a: $deviceName',
+                      style: const TextStyle(
+                          fontSize: 12,
+                          color: _primaryBlue,
+                          fontWeight: FontWeight.w500)),
                 ],
               ),
             ],
@@ -987,12 +1135,15 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
                   ElevatedButton.icon(
                     onPressed: () => _updateStatus(alert['id'], 'En atención'),
                     icon: const Icon(Icons.play_arrow_rounded, size: 16),
-                    label: const Text('Iniciar Atención', style: TextStyle(fontSize: 12)),
+                    label: const Text('Iniciar Atención',
+                        style: TextStyle(fontSize: 12)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _primaryBlue,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                     ),
                   ),
                 if (status == 'En atención') ...[
@@ -1000,27 +1151,34 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
                     onPressed: () => _updateStatus(alert['id'], 'Falsa Alarma'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.blueGrey,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                     ),
-                    child: const Text('Falsa Alarma', style: TextStyle(fontSize: 12)),
+                    child: const Text('Falsa Alarma',
+                        style: TextStyle(fontSize: 12)),
                   ),
                   const SizedBox(width: 8),
                   ElevatedButton.icon(
                     onPressed: () => _updateStatus(alert['id'], 'Resuelta'),
                     icon: const Icon(Icons.check_rounded, size: 16),
-                    label: const Text('Resolver', style: TextStyle(fontSize: 12)),
+                    label:
+                        const Text('Resolver', style: TextStyle(fontSize: 12)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF2E7D32),
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                     ),
                   ),
                 ],
                 if (status == 'Resuelta' || status == 'Falsa Alarma') ...[
                   IconButton(
-                    icon: const Icon(Icons.delete_outline_rounded, color: _dangerColor, size: 20),
+                    icon: const Icon(Icons.delete_outline_rounded,
+                        color: _dangerColor, size: 20),
                     tooltip: 'Eliminar del registro',
                     onPressed: () => _deleteAlert(alert['id']),
                   ),
@@ -1035,11 +1193,24 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
 
   void _updateStatus(int id, String newStatus) async {
     try {
-      await ApiService.updateAlertStatus(id, newStatus);
-      _loadAlerts();
+      final res = await ApiService.updateAlertStatus(id, newStatus);
+      if (!mounted) return;
+      // Actualiza solo la alerta modificada, sin recargar todo el módulo.
+      final updated = res['alert'];
+      setState(() {
+        final i = _alerts.indexWhere((a) => a['id'] == id);
+        if (i >= 0) {
+          final merged = Map<String, dynamic>.from(_alerts[i] as Map);
+          if (updated is Map) merged.addAll(Map<String, dynamic>.from(updated));
+          merged['status'] = newStatus;
+          _alerts[i] = merged;
+        }
+      });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Alerta actualizada a "$newStatus"'), backgroundColor: const Color(0xFF1A5DC8)),
+        SnackBar(
+            content: Text('Alerta actualizada a "$newStatus"'),
+            backgroundColor: const Color(0xFF1A5DC8)),
       );
     } catch (e) {
       if (!mounted) return;
@@ -1057,10 +1228,13 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
         title: const Text('¿Eliminar registro de alerta?'),
         content: const Text('Esta acción quitará la alerta del historial.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar')),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: _dangerColor, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: _dangerColor, foregroundColor: Colors.white),
             child: const Text('Eliminar'),
           ),
         ],
@@ -1069,7 +1243,15 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
     if (confirm != true) return;
     try {
       await ApiService.deleteAlert(id);
-      _loadAlerts();
+      if (!mounted) return;
+      setState(() {
+        _alerts.removeWhere((a) => a['id'] == id);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Alerta eliminada'),
+            backgroundColor: Color(0xFF1A5DC8)),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1077,25 +1259,6 @@ class _AlertsScreenState extends State<AlertsScreen> with SingleTickerProviderSt
       );
     }
   }
-}
-
-// ── Painter del grid del mapa ─────────────────────────────────────────────────
-class _MapGridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = const Color(0xFF1A5DC8).withValues(alpha: 0.15)
-      ..strokeWidth = 0.7;
-    for (double y = 0; y < size.height; y += size.height / 8) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-    for (double x = 0; x < size.width; x += size.width / 6) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // ── Modelos ───────────────────────────────────────────────────────────────────
@@ -1112,10 +1275,3 @@ class _Priority {
   const _Priority(this.label, this.color);
 }
 
-class _ModuleItem {
-  final IconData icon;
-  final String label;
-  final String route;
-  final Color color;
-  const _ModuleItem(this.icon, this.label, this.route, this.color);
-}

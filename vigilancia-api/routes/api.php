@@ -47,8 +47,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/alerts/{id}/status', [AlertController::class, 'updateStatus']);
     Route::delete('/alerts/{id}',     [AlertController::class, 'destroy']);
 
-    // Reportes
-    Route::get('/reports', [ReportController::class, 'index']);
+    // Reportes (el rol visitante no tiene acceso)
+    Route::get('/reports', [ReportController::class, 'index'])->middleware('role:admin,operator');
 
     // Mapa
     Route::get('/map/nodes', [MapController::class, 'nodes']);

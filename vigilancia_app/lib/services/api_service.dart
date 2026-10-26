@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../main.dart' show SessionService;
 
 class SessionExpiredException implements Exception {
   @override
@@ -157,8 +158,10 @@ class ApiService {
     String? status,
     double? latitude,
     double? longitude,
+    bool shareToChat = true,
   }) async {
     final payload = <String, dynamic>{
+      'share_to_chat': shareToChat,
       'type':        type,
       'priority':    priority,
       'location':    location ?? '',
@@ -194,7 +197,16 @@ class ApiService {
   // ── Dispositivos y Control PTZ ────────────────────────────────
   static Future<List<dynamic>> getDevices() async {
     final response = await _authed('GET', '/devices');
-    if (response.statusCode == 200) return jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      final List<dynamic> list = jsonDecode(response.body);
+      // Segunda barrera: aunque el servidor devolviera de más, quien no es
+      // admin solo ve los dispositivos registrados con su usuario.
+      if (SessionService.cachedRole == 'admin') return list;
+      final me = SessionService.cachedUserId;
+      return list
+          .where((d) => d is Map && '${d['user_id']}' == '$me')
+          .toList();
+    }
     throw _handleError(response, 'Error al cargar dispositivos');
   }
 
@@ -240,6 +252,8 @@ class ApiService {
     int? port,
     bool? isPtz,
     String? deviceType,
+    double? latitude,
+    double? longitude,
   }) async {
     final body = <String, dynamic>{};
     if (title != null)      body['title']       = title;
@@ -250,6 +264,8 @@ class ApiService {
     if (port != null)       body['port']        = port;
     if (isPtz != null)      body['is_ptz']      = isPtz;
     if (deviceType != null) body['device_type'] = deviceType;
+    if (latitude != null)  body['latitude']    = latitude;
+    if (longitude != null) body['longitude']   = longitude;
 
     final response = await _authed('PUT', '/devices/$id', body: body);
     if (response.statusCode == 200) return jsonDecode(response.body);
@@ -315,15 +331,19 @@ class ApiService {
   static Future<void> logout() async {
     final token = await getToken();
     if (token == null) return;
+    await revokeToken(token);
+  }
 
+  /// Revoca un token en el servidor. Los errores de red se ignoran: la
+  /// sesión local ya se cerró y el token vence solo.
+  static Future<void> revokeToken(String token) async {
+    _lastValidatedAt = null;
     try {
       await http.post(
         Uri.parse('$baseUrl/logout'),
         headers: _authHeaders(token),
       ).timeout(const Duration(seconds: 8));
-    } catch (_) {
-      // Si falla la red, igualmente limpiamos local
-    }
+    } catch (_) {}
   }
 
   // ── Perfil del usuario autenticado ───────────────────────────

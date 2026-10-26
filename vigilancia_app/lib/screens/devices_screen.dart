@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../services/api_service.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_theme.dart';
 import '../widgets/device_card.dart';
 import '../widgets/responsive.dart';
-import '../widgets/theme_toggle_button.dart';
+import '../widgets/app_shell.dart';
 import '../main.dart';
 
 class DevicesScreen extends StatefulWidget {
@@ -23,21 +26,14 @@ class _DevicesScreenState extends State<DevicesScreen> {
 
   AppColors get _c => AppColors.of(context);
 
-  static const List<_ModuleItem> _allModules = [
-    _ModuleItem(Icons.dashboard_rounded,            'Dashboard',    AppRoutes.dashboard,     Color(0xFF1A5DC8)),
-    _ModuleItem(Icons.map_rounded,                  'Mapa',         AppRoutes.map,           Color(0xFF00897B)),
-    _ModuleItem(Icons.videocam_rounded,             'Cámaras',      AppRoutes.cameraView,    Color(0xFF6D4C41)),
-    _ModuleItem(Icons.devices_rounded,              'Dispositivos', AppRoutes.devices,       Color(0xFF5E35B1)),
-    _ModuleItem(Icons.warning_amber_rounded,        'Alertas',      AppRoutes.alerts,        Color(0xFFE53935)),
-    _ModuleItem(Icons.forum_rounded,                'Comunicación', AppRoutes.communication, Color(0xFF0288D1)),
-    _ModuleItem(Icons.psychology_rounded,           'IA Hub',       AppRoutes.iaModule,      Color(0xFF7B1FA2)),
-    _ModuleItem(Icons.assessment_rounded,           'Reportes',     AppRoutes.reportes,      Color(0xFF2E7D32)),
-    _ModuleItem(Icons.admin_panel_settings_rounded, 'Admin',        AppRoutes.admin,         Color(0xFFAD1457)),
-  ];
+  bool _isAdmin = false;
 
   @override
   void initState() {
     super.initState();
+    SessionService.isAdmin().then((v) {
+      if (mounted) setState(() => _isAdmin = v);
+    });
     _loadDevices();
   }
 
@@ -325,6 +321,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
                             keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
                             style: TextStyle(fontSize: 13, color: _c.text),
                             decoration: _inputDeco('5.3114'),
+                            onChanged: (_) => setSheet(() {}),
                           ),
                         ],
                       ),
@@ -343,11 +340,18 @@ class _DevicesScreenState extends State<DevicesScreen> {
                             keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
                             style: TextStyle(fontSize: 13, color: _c.text),
                             decoration: _inputDeco('-73.8155'),
+                            onChanged: (_) => setSheet(() {}),
                           ),
                         ],
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 14),
+                _buildMiniMapLocationPicker(
+                  latCtrl: latCtrl,
+                  lngCtrl: lngCtrl,
+                  setSheet: setSheet,
                 ),
                 const SizedBox(height: 14),
 
@@ -422,16 +426,17 @@ class _DevicesScreenState extends State<DevicesScreen> {
                         if (!ctx.mounted) return;
                         Navigator.pop(ctx);
                         _loadDevices();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Dispositivo registrado correctamente'),
-                            backgroundColor: Color(0xFF1A5DC8),
-                          ),
+                        showAppSnackBar(
+                          context,
+                          'Dispositivo registrado correctamente',
+                          backgroundColor: const Color(0xFF1A5DC8),
                         );
                       } catch (e) {
                         setSheet(() => saving = false);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent),
+                        showAppSnackBar(
+                          context,
+                          'Error: $e',
+                          backgroundColor: Colors.redAccent,
                         );
                       }
                     },
@@ -457,6 +462,72 @@ class _DevicesScreenState extends State<DevicesScreen> {
     );
   }
 
+  Widget _buildMiniMapLocationPicker({
+    required TextEditingController latCtrl,
+    required TextEditingController lngCtrl,
+    required StateSetter setSheet,
+  }) {
+    final double initialLat = double.tryParse(latCtrl.text.trim()) ?? 5.3114;
+    final double initialLng = double.tryParse(lngCtrl.text.trim()) ?? -73.8155;
+    final currentPoint = LatLng(initialLat, initialLng);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'UBICACIÓN EN EL MAPA (Toca para colocar pin)',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: _c.label,
+            letterSpacing: 0.8,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          height: 180,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _c.border),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: FlutterMap(
+            options: MapOptions(
+              initialCenter: currentPoint,
+              initialZoom: 14.0,
+              onTap: (tapPosition, point) {
+                setSheet(() {
+                  latCtrl.text = point.latitude.toStringAsFixed(6);
+                  lngCtrl.text = point.longitude.toStringAsFixed(6);
+                });
+              },
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.svi.vigilancia',
+              ),
+              MarkerLayer(
+                markers: [
+                  Marker(
+                    point: currentPoint,
+                    width: 36,
+                    height: 36,
+                    child: const Icon(
+                      Icons.location_on,
+                      color: Color(0xFFE53935),
+                      size: 34,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   // ── Editar dispositivo ─────────────────────────────────────────
   void _showEditDeviceDialog(dynamic device) {
     final titleCtrl     = TextEditingController(text: device['title'] ?? '');
@@ -464,6 +535,17 @@ class _DevicesScreenState extends State<DevicesScreen> {
     final streamUrlCtrl = TextEditingController(text: device['stream_url'] ?? '');
     final ipCtrl        = TextEditingController(text: device['ip_address'] ?? '');
     final portCtrl      = TextEditingController(text: '${device['port'] ?? 554}');
+
+    final double? devLat = device['latitude'] is num
+        ? (device['latitude'] as num).toDouble()
+        : double.tryParse(device['latitude']?.toString() ?? '');
+    final double? devLng = device['longitude'] is num
+        ? (device['longitude'] as num).toDouble()
+        : double.tryParse(device['longitude']?.toString() ?? '');
+
+    final latCtrl       = TextEditingController(text: devLat != null ? '$devLat' : '5.3114');
+    final lngCtrl       = TextEditingController(text: devLng != null ? '$devLng' : '-73.8155');
+
     String selectedStatus = device['status'] ?? 'Activo';
     String selectedType   = device['device_type'] ?? 'camera';
     bool isPtz = device['is_ptz'] == true || device['is_ptz'] == 1;
@@ -533,6 +615,55 @@ class _DevicesScreenState extends State<DevicesScreen> {
                   controller: subtitleCtrl,
                   style: TextStyle(fontSize: 14, color: _c.text),
                   decoration: _inputDeco('Ej: Sector A, Puerta Principal'),
+                ),
+                const SizedBox(height: 14),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('LATITUD',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
+                                  color: _c.label, letterSpacing: 0.8)),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: latCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                            style: TextStyle(fontSize: 13, color: _c.text),
+                            decoration: _inputDeco('5.3114'),
+                            onChanged: (_) => setSheet(() {}),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('LONGITUD',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
+                                  color: _c.label, letterSpacing: 0.8)),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: lngCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                            style: TextStyle(fontSize: 13, color: _c.text),
+                            decoration: _inputDeco('-73.8155'),
+                            onChanged: (_) => setSheet(() {}),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                _buildMiniMapLocationPicker(
+                  latCtrl: latCtrl,
+                  lngCtrl: lngCtrl,
+                  setSheet: setSheet,
                 ),
                 const SizedBox(height: 14),
 
@@ -657,6 +788,8 @@ class _DevicesScreenState extends State<DevicesScreen> {
                       }
                       setSheet(() { saving = true; formError = null; });
                       try {
+                        final lat = double.tryParse(latCtrl.text.trim());
+                        final lng = double.tryParse(lngCtrl.text.trim());
                         await ApiService.updateDevice(
                           device['id'],
                           title: name,
@@ -667,20 +800,23 @@ class _DevicesScreenState extends State<DevicesScreen> {
                           port: int.tryParse(portCtrl.text.trim()),
                           isPtz: isPtz,
                           deviceType: selectedType,
+                          latitude: lat,
+                          longitude: lng,
                         );
                         if (!ctx.mounted) return;
                         Navigator.pop(ctx);
                         _loadDevices();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Dispositivo actualizado correctamente'),
-                            backgroundColor: Color(0xFF1A5DC8),
-                          ),
+                        showAppSnackBar(
+                          context,
+                          'Dispositivo actualizado correctamente',
+                          backgroundColor: const Color(0xFF1A5DC8),
                         );
                       } catch (e) {
                         setSheet(() => saving = false);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent),
+                        showAppSnackBar(
+                          context,
+                          'Error: $e',
+                          backgroundColor: Colors.redAccent,
                         );
                       }
                     },
@@ -788,13 +924,17 @@ class _DevicesScreenState extends State<DevicesScreen> {
       await ApiService.deleteDevice(device['id']);
       _loadDevices();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Dispositivo eliminado'), backgroundColor: Color(0xFF1A5DC8)),
+      showAppSnackBar(
+        context,
+        'Dispositivo eliminado',
+        backgroundColor: const Color(0xFF1A5DC8),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent),
+      showAppSnackBar(
+        context,
+        'Error: $e',
+        backgroundColor: Colors.redAccent,
       );
     }
   }
@@ -852,6 +992,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
         imageUrl:  d['imageUrl'] ?? '',
         isPtz:     d['is_ptz'] == true || d['is_ptz'] == 1,
         streamUrl: d['stream_url'] ?? '',
+        owner:     _isAdmin && d['is_mine'] != true ? d['owner_name']?.toString() : null,
         onTap: () {
           Navigator.pushNamed(
             context,
@@ -875,7 +1016,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
           child: Column(
             children: [
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
               child: _buildTopBar(),
             ),
             Padding(
@@ -915,7 +1056,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
                                           padding: const EdgeInsets.symmetric(horizontal: 20),
                                           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                                             crossAxisCount: columns,
-                                            mainAxisExtent: 96,
+                                            mainAxisExtent: 104,
                                             crossAxisSpacing: 12,
                                             mainAxisSpacing: 4,
                                           ),
@@ -975,221 +1116,69 @@ class _DevicesScreenState extends State<DevicesScreen> {
     );
   }
 
-  Widget _buildTopBar() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
-          children: [
-            Builder(
-              builder: (ctx) => GestureDetector(
-                onTap: () => Scaffold.of(ctx).openDrawer(),
-                child: Container(
-                  width: 36, height: 36,
-                  decoration: BoxDecoration(
-                    color: _primaryBlue.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.menu_rounded, color: _primaryBlue, size: 20),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Container(
-              width: 32, height: 32,
-              decoration: BoxDecoration(color: _primaryBlue, borderRadius: BorderRadius.circular(8)),
-              child: const Icon(Icons.shield_rounded, color: Colors.white, size: 18),
-            ),
-            const SizedBox(width: 8),
-            Text('Dispositivos',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _c.text)),
-          ],
-        ),
-        Row(
-          children: [
-            const ThemeToggleButton(),
-            const SizedBox(width: 4),
-            GestureDetector(
-              onTap: () => Navigator.pushNamed(context, AppRoutes.profile),
-              child: CircleAvatar(
-                radius: 18,
-                backgroundColor: _primaryBlue.withValues(alpha: 0.15),
-                child: const Icon(Icons.person_rounded, color: _primaryBlue, size: 20),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
+  Widget _buildTopBar() => AppTopBar(
+        title: 'Dispositivos',
+        subtitle: _isAdmin ? 'Todos los dispositivos del sistema' : 'Cámaras y equipos que registraste',
+        icon: Icons.devices_other_rounded,
+      );
 
   Widget _buildHeader() {
+    final active = _devices.where((d) => d['status'] == 'Activo').length;
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('SISTEMAS ACTIVOS',
-                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600,
-                    color: _c.label, letterSpacing: 1.0)),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Text('Mis Dispositivos',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _c.text)),
-                if (_devices.isNotEmpty) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: _primaryBlue,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text('${_devices.length}',
-                        style: const TextStyle(color: Colors.white,
-                            fontSize: 11, fontWeight: FontWeight.w700)),
-                  ),
-                ],
-              ],
-            ),
-          ],
+        Expanded(
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              _countChip(Icons.devices_rounded, '${_devices.length} registrados', AppColors.primary),
+              _countChip(Icons.wifi_rounded, '$active activos', AppColors.success),
+            ],
+          ),
         ),
-        Row(
-          children: [
-            // View Mode Toggle (Grid / Mosaico vs List / Lista)
-            GestureDetector(
-              onTap: () => setState(() => _isGridMode = !_isGridMode),
-              child: Container(
-                width: 36, height: 36,
-                decoration: BoxDecoration(
-                  color: _primaryBlue.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  _isGridMode ? Icons.view_list_rounded : Icons.grid_view_rounded,
-                  color: _primaryBlue,
-                  size: 20,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: _showAddDeviceDialog,
-              child: Container(
-                width: 36, height: 36,
-                decoration: BoxDecoration(
-                  color: _primaryBlue,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.add_rounded, color: Colors.white, size: 20),
-              ),
-            ),
-          ],
+        IconButton(
+          tooltip: _isGridMode ? 'Ver como lista' : 'Ver como mosaico',
+          onPressed: () => setState(() => _isGridMode = !_isGridMode),
+          style: IconButton.styleFrom(
+            backgroundColor: _c.tint(AppColors.primary),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          icon: Icon(
+            _isGridMode ? Icons.view_list_rounded : Icons.grid_view_rounded,
+            color: AppColors.primary,
+            size: 20,
+          ),
+        ),
+        const SizedBox(width: 8),
+        FilledButton.icon(
+          onPressed: _showAddDeviceDialog,
+          icon: const Icon(Icons.add_rounded, size: 20),
+          label: Text(isWideLayout(context) ? 'Agregar dispositivo' : 'Agregar'),
         ),
       ],
     );
   }
 
-  Widget _buildDrawer() {
-    return Drawer(
-      child: Column(
+  Widget _countChip(IconData icon, String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: _c.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _c.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(20, 50, 20, 24),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF1A5DC8), Color(0xFF0D1B2A)],
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 48, height: 48,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Icon(Icons.shield_rounded, color: Colors.white, size: 28),
-                ),
-                const SizedBox(height: 14),
-                const Text('Sentinel SVI',
-                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
-                const Text('Sistema de Vigilancia Integral',
-                    style: TextStyle(color: Colors.white60, fontSize: 12)),
-              ],
-            ),
-          ),
-          Expanded(
-            child: FutureBuilder<bool>(
-              future: SessionService.isAdmin(),
-              builder: (context, snapshot) {
-                final isAdmin = snapshot.data ?? false;
-                final visibleModules = _allModules
-                    .where((mod) => mod.route != AppRoutes.admin || isAdmin)
-                    .toList();
-                return ListView(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  children: visibleModules.map((mod) {
-                    final isCurrent = mod.route == AppRoutes.devices;
-                    return ListTile(
-                      leading: Container(
-                        width: 38, height: 38,
-                        decoration: BoxDecoration(
-                          color: isCurrent ? mod.color : mod.color.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(mod.icon, color: isCurrent ? Colors.white : mod.color, size: 20),
-                      ),
-                      title: Text(mod.label,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
-                            color: isCurrent ? _primaryBlue : _c.text,
-                          )),
-                      trailing: isCurrent
-                          ? Container(
-                              width: 6, height: 6,
-                              decoration: BoxDecoration(color: _primaryBlue, shape: BoxShape.circle))
-                          : null,
-                      onTap: () {
-                        Navigator.pop(context);
-                        if (!isCurrent) Navigator.pushNamed(context, mod.route);
-                      },
-                    );
-                  }).toList(),
-                );
-              },
-            ),
-          ),
-          const Divider(height: 1),
-          ListTile(
-            leading: const Icon(Icons.logout_rounded, color: _dangerColor),
-            title: const Text('Cerrar sesión',
-                style: TextStyle(color: _dangerColor, fontWeight: FontWeight.w600)),
-            onTap: () async {
-              Navigator.pop(context);
-              await ApiService.logout();
-              await SessionService.logout();
-              if (!context.mounted) return;
-              Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (_) => false);
-            },
-          ),
-          const SizedBox(height: 12),
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _c.text)),
         ],
       ),
     );
   }
+
+  Widget _buildDrawer() => const AppDrawer(currentRoute: AppRoutes.devices);
 }
 
-class _ModuleItem {
-  final IconData icon;
-  final String label;
-  final String route;
-  final Color color;
-  const _ModuleItem(this.icon, this.label, this.route, this.color);
-}

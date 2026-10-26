@@ -8,6 +8,9 @@ class DeviceCard extends StatelessWidget {
   final String imageUrl;
   final bool isPtz;
   final String streamUrl;
+
+  /// Nombre de quien registró el dispositivo (solo se muestra al admin).
+  final String? owner;
   final VoidCallback? onTap;
   final VoidCallback? onDelete;
   final VoidCallback? onEdit;
@@ -20,6 +23,7 @@ class DeviceCard extends StatelessWidget {
     required this.imageUrl,
     this.isPtz = false,
     this.streamUrl = '',
+    this.owner,
     this.onTap,
     this.onDelete,
     this.onEdit,
@@ -27,97 +31,93 @@ class DeviceCard extends StatelessWidget {
 
   Color get _statusColor {
     switch (status) {
-      case 'Activo':        return const Color(0xFF2E7D32);
-      case 'Inactivo':      return const Color(0xFFE53935);
-      case 'Mantenimiento': return const Color(0xFFF57C00);
-      default:              return const Color(0xFF6B7A99);
-    }
-  }
-
-  Color get _statusBg {
-    switch (status) {
-      case 'Activo':        return const Color(0xFFE8F5E9);
-      case 'Inactivo':      return const Color(0xFFFDECEC);
-      case 'Mantenimiento': return const Color(0xFFFFF3E0);
-      default:              return const Color(0xFFF4F7FB);
-    }
-  }
-
-  IconData get _statusIcon {
-    switch (status) {
-      case 'Activo':        return Icons.wifi_rounded;
-      case 'Inactivo':      return Icons.wifi_off_rounded;
-      case 'Mantenimiento': return Icons.build_rounded;
-      default:              return Icons.device_unknown_rounded;
+      case 'Activo':
+        return AppColors.success;
+      case 'Inactivo':
+        return AppColors.danger;
+      case 'Mantenimiento':
+        return AppColors.warning;
+      default:
+        return const Color(0xFF6B7A99);
     }
   }
 
   IconData get _deviceIcon {
     final t = title.toLowerCase();
+    if (t.contains('sensor')) return Icons.sensors_rounded;
+    if (t.contains('acceso') || t.contains('puerta')) return Icons.door_front_door_rounded;
+    if (t.contains('alarma')) return Icons.notifications_active_rounded;
     if (t.contains('cámara') || t.contains('camara') || t.contains('cam') || streamUrl.isNotEmpty) {
       return Icons.videocam_rounded;
-    } else if (t.contains('sensor')) {
-      return Icons.sensors_rounded;
-    } else if (t.contains('acceso') || t.contains('puerta')) {
-      return Icons.door_front_door_rounded;
-    } else if (t.contains('alarma')) {
-      return Icons.notifications_active_rounded;
     }
     return Icons.devices_rounded;
   }
 
+  bool get _isLocal => streamUrl.startsWith('local://');
+
   @override
   Widget build(BuildContext context) {
     final c = AppColors.of(context);
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(
-            color: c.card,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: c.border, width: 1),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // ── Ícono del dispositivo ────────────────────────────
-                Container(
-                  width: 46, height: 46,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A5DC8).withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: imageUrl.isNotEmpty
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.network(
-                            imageUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Icon(
-                              _deviceIcon,
-                              color: const Color(0xFF1A5DC8),
-                              size: 24,
-                            ),
-                          ),
-                        )
-                      : Icon(_deviceIcon, color: const Color(0xFF1A5DC8), size: 24),
-                ),
-                const SizedBox(width: 10),
+    final statusColor = _statusColor;
+    final details = subtitle.isNotEmpty
+        ? subtitle
+        : (_isLocal ? 'Cámara del equipo' : (streamUrl.isNotEmpty ? streamUrl : 'Sin descripción'));
 
-                // ── Nombre y descripción (Expanded con flexible constraints) ─
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: c.card,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: c.border),
+            ),
+            padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+            child: Row(
+              children: [
+                // Ícono con indicador de estado
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: c.tint(AppColors.primary),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: imageUrl.isNotEmpty
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(14),
+                              child: Image.network(
+                                imageUrl,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) =>
+                                    Icon(_deviceIcon, color: AppColors.primary, size: 24),
+                              ),
+                            )
+                          : Icon(_deviceIcon, color: AppColors.primary, size: 24),
+                    ),
+                    Positioned(
+                      right: -2,
+                      bottom: -2,
+                      child: Container(
+                        width: 14,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: statusColor,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: c.card, width: 2.5),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -128,130 +128,95 @@ class DeviceCard extends StatelessWidget {
                           Flexible(
                             child: Text(
                               title,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: c.text,
-                              ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: c.text),
                             ),
                           ),
                           if (isPtz) ...[
-                            const SizedBox(width: 4),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF1A5DC8).withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: const Text(
-                                'PTZ',
-                                style: TextStyle(
-                                  fontSize: 8,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF1A5DC8),
-                                ),
+                            const SizedBox(width: 6),
+                            _tag('PTZ', AppColors.primary, c),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        details,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12, color: c.label),
+                      ),
+                      const SizedBox(height: 5),
+                      Row(
+                        children: [
+                          _tag(status, statusColor, c),
+                          if (owner != null && owner!.isNotEmpty) ...[
+                            const SizedBox(width: 6),
+                            Icon(Icons.person_outline_rounded, size: 13, color: c.hint),
+                            const SizedBox(width: 2),
+                            Flexible(
+                              child: Text(
+                                owner!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontSize: 11, color: c.hint),
                               ),
                             ),
                           ],
                         ],
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle.isNotEmpty
-                            ? subtitle
-                            : (streamUrl.isNotEmpty ? streamUrl : 'Sin descripción'),
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: c.label,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
-
-                // ── Acciones y Estado (Optimizadas para mobile portrait sin clipping) ─
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (onEdit != null) ...[
-                          GestureDetector(
-                            onTap: onEdit,
-                            child: Container(
-                              padding: const EdgeInsets.all(5),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF1A5DC8).withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Icon(Icons.edit_outlined, color: Color(0xFF1A5DC8), size: 15),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                        ],
-                        if (onDelete != null) ...[
-                          GestureDetector(
-                            onTap: onDelete,
-                            child: Container(
-                              padding: const EdgeInsets.all(5),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFE53935).withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Icon(Icons.delete_outline_rounded, color: Color(0xFFE53935), size: 15),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                        ],
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: _statusBg,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: _statusColor.withValues(alpha: 0.3), width: 1),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(_statusIcon, color: _statusColor, size: 10),
-                              const SizedBox(width: 3),
-                              Text(
-                                status,
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: _statusColor,
-                                ),
-                              ),
-                            ],
-                          ),
+                if (onEdit != null || onDelete != null)
+                  PopupMenuButton<String>(
+                    tooltip: 'Opciones',
+                    icon: Icon(Icons.more_vert_rounded, color: c.label),
+                    onSelected: (v) {
+                      if (v == 'edit') onEdit?.call();
+                      if (v == 'delete') onDelete?.call();
+                    },
+                    itemBuilder: (_) => [
+                      if (onEdit != null)
+                        const PopupMenuItem(
+                          value: 'edit',
+                          child: Row(children: [
+                            Icon(Icons.edit_outlined, size: 18),
+                            SizedBox(width: 10),
+                            Text('Editar'),
+                          ]),
                         ),
-                      ],
-                    ),
-                    if (onTap != null) ...[
-                      const SizedBox(height: 4),
-                      const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text('Ver feed', style: TextStyle(fontSize: 10, color: Color(0xFF1A5DC8), fontWeight: FontWeight.w600)),
-                          SizedBox(width: 2),
-                          Icon(Icons.chevron_right_rounded, size: 12, color: Color(0xFF1A5DC8)),
-                        ],
-                      ),
+                      if (onDelete != null)
+                        const PopupMenuItem(
+                          value: 'delete',
+                          child: Row(children: [
+                            Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.danger),
+                            SizedBox(width: 10),
+                            Text('Eliminar', style: TextStyle(color: AppColors.danger)),
+                          ]),
+                        ),
                     ],
-                  ],
-                ),
+                  )
+                else if (onTap != null)
+                  Icon(Icons.chevron_right_rounded, color: c.hint),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _tag(String text, Color color, AppColors c) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: c.tint(color),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: color),
       ),
     );
   }

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-import '../main.dart';
+
+import '../main.dart'; // AppRoutes, SessionService
 import '../services/api_service.dart';
-import '../widgets/theme_toggle_button.dart';
-import '../widgets/responsive.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_theme.dart';
+import '../widgets/app_shell.dart';
+import '../widgets/responsive.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -13,29 +15,32 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   AppColors get _c => AppColors.of(context);
-  Color get _bg    => _c.bg;
-  Color get _card  => _c.card;
-  Color get _label => _c.label;
-  Color get _text  => _c.text;
-  Color get _input => _c.input;
-  Color get _border => _c.border;
-
-  static const Color _blue   = Color(0xFF1A5DC8);
-  static const Color _danger = Color(0xFFE53935);
 
   Map<String, dynamic>? _profile;
   bool _loading = true;
   String? _error;
   bool _editing = false;
-  bool _saving  = false;
+  bool _saving = false;
+  bool _argsRead = false;
 
-  final _nameCtrl  = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  final _nameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_argsRead) return;
+    _argsRead = true;
+    // "Editar perfil" desde el menú abre la pantalla en modo edición.
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map && args['edit'] == true) _editing = true;
   }
 
   @override
@@ -46,411 +51,403 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadProfile() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = _profile == null;
+      _error = null;
+    });
     try {
       final data = await ApiService.getProfile();
+      if (!mounted) return;
       setState(() {
         _profile = data;
-        _nameCtrl.text  = data['name'] ?? '';
-        _phoneCtrl.text = data['phone'] ?? '';
+        _nameCtrl.text = (data['name'] ?? '').toString();
+        _phoneCtrl.text = (data['phone'] ?? '').toString();
         _loading = false;
       });
+    } on SessionExpiredException {
+      return;
     } catch (e) {
+      if (!mounted) return;
       setState(() {
-        _error   = e.toString().replaceFirst('Exception: ', '');
+        _error = e.toString().replaceFirst('Exception: ', '');
         _loading = false;
       });
     }
   }
 
   Future<void> _saveProfile() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() => _saving = true);
     try {
       final updated = await ApiService.updateProfile(
-        name:  _nameCtrl.text.trim(),
+        name: _nameCtrl.text.trim(),
         phone: _phoneCtrl.text.trim(),
       );
+      final user = updated['user'];
+      if (user is Map) {
+        await SessionService.updateName((user['name'] ?? _nameCtrl.text.trim()).toString());
+      }
+      if (!mounted) return;
       setState(() {
-        _profile  = updated['user'];
-        _editing  = false;
-        _saving   = false;
+        if (user is Map) _profile = Map<String, dynamic>.from(user);
+        _editing = false;
+        _saving = false;
       });
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Perfil actualizado correctamente'),
-        backgroundColor: Color(0xFF16A34A),
-      ));
+      showAppSnackBar(context, 'Perfil actualizado', backgroundColor: AppColors.success, icon: Icons.check_rounded);
     } catch (e) {
-      setState(() => _saving = false);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(e.toString().replaceFirst('Exception: ', '')),
-        backgroundColor: _danger,
-      ));
+      setState(() => _saving = false);
+      showAppSnackBar(context, e.toString().replaceFirst('Exception: ', ''), backgroundColor: AppColors.danger);
     }
   }
 
-  String _initials(String? name) {
-    if (name == null || name.isEmpty) return '?';
-    final parts = name.trim().split(' ');
-    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    return name.substring(0, name.length.clamp(1, 2)).toUpperCase();
+  void _cancelEdit() {
+    setState(() {
+      _editing = false;
+      _nameCtrl.text = (_profile?['name'] ?? '').toString();
+      _phoneCtrl.text = (_profile?['phone'] ?? '').toString();
+    });
   }
 
-  String _roleLabel(String? role) {
-    switch (role) {
-      case 'admin':    return 'Administrador';
-      case 'operator': return 'Operador';
-      default:         return 'Visitante';
-    }
-  }
+  Future<void> _changePassword() async {
+    final pass = TextEditingController();
+    final confirm = TextEditingController();
+    final key = GlobalKey<FormState>();
+    bool busy = false;
+    bool obscure = true;
 
-  Color _roleColor(String? role) {
-    switch (role) {
-      case 'admin':    return _blue;
-      case 'operator': return const Color(0xFFF59E0B);
-      default:         return _label;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _bg,
-      drawer: _buildDrawer(),
-      body: SafeArea(
-        child: ResponsiveShell(
-          maxWidth: 700,
-          child: Column(
-            children: [
-              _topBar(),
-              Expanded(
-                child: _loading
-                  ? const Center(child: CircularProgressIndicator(color: _blue))
-                  : _error != null
-                    ? _buildError()
-                    : _buildContent(),
+    await showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (dialogCtx, setDialog) => AlertDialog(
+          title: const Text('Cambiar contraseña'),
+          content: SizedBox(
+            width: 380,
+            child: Form(
+              key: key,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: pass,
+                    obscureText: obscure,
+                    decoration: InputDecoration(
+                      labelText: 'Nueva contraseña',
+                      prefixIcon: const Icon(Icons.lock_outline_rounded),
+                      suffixIcon: IconButton(
+                        onPressed: () => setDialog(() => obscure = !obscure),
+                        icon: Icon(obscure ? Icons.visibility_rounded : Icons.visibility_off_rounded),
+                      ),
+                    ),
+                    validator: (v) => (v == null || v.length < 6) ? 'Mínimo 6 caracteres' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: confirm,
+                    obscureText: obscure,
+                    decoration: const InputDecoration(
+                      labelText: 'Confirmar contraseña',
+                      prefixIcon: Icon(Icons.lock_reset_rounded),
+                    ),
+                    validator: (v) => v != pass.text ? 'Las contraseñas no coinciden' : null,
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: busy ? null : () => Navigator.pop(dialogCtx),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: busy
+                  ? null
+                  : () async {
+                      if (!(key.currentState?.validate() ?? false)) return;
+                      setDialog(() => busy = true);
+                      try {
+                        await ApiService.updateProfile(password: pass.text, passwordConfirmation: confirm.text);
+                        if (!dialogCtx.mounted) return;
+                        Navigator.pop(dialogCtx);
+                        if (!mounted) return;
+                        showAppSnackBar(context, 'Contraseña actualizada', backgroundColor: AppColors.success);
+                      } catch (e) {
+                        setDialog(() => busy = false);
+                        if (!mounted) return;
+                        showAppSnackBar(context, e.toString().replaceFirst('Exception: ', ''),
+                            backgroundColor: AppColors.danger);
+                      }
+                    },
+              child: busy
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Guardar'),
+            ),
+          ],
         ),
       ),
     );
+    pass.dispose();
+    confirm.dispose();
   }
 
-  Widget _topBar() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Builder(
-            builder: (ctx) => GestureDetector(
-              onTap: () => Scaffold.of(ctx).openDrawer(),
-              child: Container(
-                width: 38, height: 38,
-                decoration: BoxDecoration(
-                  color: _blue.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.menu_rounded, color: _blue, size: 22),
+  // ══════════════════════════════════════════════════════════════════════
+  @override
+  Widget build(BuildContext context) {
+    final wide = isWideLayout(context);
+    final pad = wide ? 28.0 : 16.0;
+    return Scaffold(
+      backgroundColor: _c.bg,
+      drawer: const AppDrawer(currentRoute: AppRoutes.profile),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(pad, 14, pad, 12),
+              child: const AppTopBar(
+                title: 'Mi perfil',
+                subtitle: 'Datos de tu cuenta',
+                icon: Icons.manage_accounts_rounded,
               ),
             ),
-          ),
-          Text('Mi Perfil', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _text)),
-          Row(
-            children: [
-              const ThemeToggleButton(),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: () => setState(() { _editing = !_editing; if (!_editing) _loadProfile(); }),
-                child: Container(
-                  width: 38, height: 38,
-                  decoration: BoxDecoration(
-                    color: _blue.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(_editing ? Icons.close_rounded : Icons.edit_rounded, color: _blue, size: 20),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDrawer() {
-    const allModules = [
-      _ModuleItem(Icons.dashboard_rounded, 'Dashboard', AppRoutes.dashboard, Color(0xFF1A5DC8)),
-      _ModuleItem(Icons.map_rounded, 'Mapa', AppRoutes.map, Color(0xFF00897B)),
-      _ModuleItem(Icons.videocam_rounded, 'Cámaras', AppRoutes.cameraView, Color(0xFF6D4C41)),
-      _ModuleItem(Icons.devices_rounded, 'Dispositivos', AppRoutes.devices, Color(0xFF5E35B1)),
-      _ModuleItem(Icons.warning_amber_rounded, 'Alertas', AppRoutes.alerts, Color(0xFFE53935)),
-      _ModuleItem(Icons.forum_rounded, 'Comunicación', AppRoutes.communication, Color(0xFF0288D1)),
-      _ModuleItem(Icons.psychology_rounded, 'IA Hub', AppRoutes.iaModule, Color(0xFF7B1FA2)),
-      _ModuleItem(Icons.assessment_rounded, 'Reportes', AppRoutes.reportes, Color(0xFF2E7D32)),
-      _ModuleItem(Icons.admin_panel_settings_rounded, 'Admin', AppRoutes.admin, Color(0xFFAD1457)),
-    ];
-    return Drawer(
-      backgroundColor: _card,
-      child: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(20, 50, 20, 24),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF1A5DC8), Color(0xFF0D1B2A)],
-              ),
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null && _profile == null
+                      ? _buildError()
+                      : SingleChildScrollView(
+                          padding: EdgeInsets.fromLTRB(pad, 4, pad, 32),
+                          child: ResponsiveShell(maxWidth: 760, child: _buildContent()),
+                        ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 48, height: 48,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Icon(Icons.shield_rounded, color: Colors.white, size: 28),
-                ),
-                const SizedBox(height: 14),
-                const Text('Sentinel SVI',
-                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
-                const Text('Sistema de Vigilancia Integral',
-                    style: TextStyle(color: Colors.white60, fontSize: 12)),
-              ],
-            ),
-          ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              children: allModules.map((mod) {
-                return ListTile(
-                  leading: Container(
-                    width: 38, height: 38,
-                    decoration: BoxDecoration(
-                      color: mod.color.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(mod.icon, color: mod.color, size: 20),
-                  ),
-                  title: Text(
-                    mod.label,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: _text,
-                    ),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.pushNamed(context, mod.route);
-                  },
-                );
-              }).toList(),
-            ),
-          ),
-          const Divider(height: 1),
-          ListTile(
-            leading: const Icon(Icons.logout_rounded, color: _danger),
-            title: const Text('Cerrar sesión', style: TextStyle(color: _danger, fontWeight: FontWeight.w600)),
-            onTap: () async {
-              Navigator.pop(context);
-              await ApiService.logout();
-              await SessionService.logout();
-              if (!context.mounted) return;
-              Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (_) => false);
-            },
-          ),
-          const SizedBox(height: 12),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildError() {
     return Center(
-      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        const Icon(Icons.error_outline_rounded, color: _danger, size: 48),
-        const SizedBox(height: 12),
-        Text(_error!, style: const TextStyle(color: _danger, fontSize: 14), textAlign: TextAlign.center),
-        const SizedBox(height: 16),
-        ElevatedButton.icon(
-          onPressed: _loadProfile,
-          icon: const Icon(Icons.refresh_rounded),
-          label: const Text('Reintentar'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: _blue,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline_rounded, color: AppColors.danger, size: 46),
+            const SizedBox(height: 12),
+            Text(_error!, textAlign: TextAlign.center, style: TextStyle(color: _c.label)),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: _loadProfile,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Reintentar'),
+            ),
+          ],
         ),
-      ]),
+      ),
     );
   }
 
   Widget _buildContent() {
-    final p = _profile!;
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-      child: Column(children: [
-        // ── Avatar + Nombre ─────────────────────────────────────
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: _card,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: _border.withValues(alpha: 0.6)),
-            boxShadow: [
-              BoxShadow(
-                color: _c.isDark ? const Color(0x4D000000) : const Color(0x0D000000),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
+    final p = _profile ?? const {};
+    final name = (p['name'] ?? '').toString();
+    final email = (p['email'] ?? '').toString();
+    final phone = (p['phone'] ?? '').toString();
+    final role = (p['role'] ?? 'viewer').toString();
+    final roleColor = RoleAccess.color(role);
+    final initials = UserSnapshot(name, email, role).initials;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Encabezado
+        AppCard(
+          padding: EdgeInsets.zero,
+          child: Column(
+            children: [
+              Container(
+                height: 84,
+                decoration: const BoxDecoration(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+                  gradient: LinearGradient(
+                    colors: [AppColors.primary, Color(0xFF0B1F44)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+              ),
+              Transform.translate(
+                offset: const Offset(0, -40),
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(color: _c.card, shape: BoxShape.circle),
+                      child: CircleAvatar(
+                        radius: 40,
+                        backgroundColor: roleColor.withValues(alpha: 0.16),
+                        child: Text(initials,
+                            style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: roleColor)),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(name.isEmpty ? 'Usuario' : name,
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _c.text)),
+                    const SizedBox(height: 2),
+                    Text(email, style: TextStyle(fontSize: 13, color: _c.label)),
+                    const SizedBox(height: 10),
+                    RoleChip(role: role),
+                  ],
+                ),
               ),
             ],
           ),
-          child: Column(children: [
-            Stack(children: [
-              CircleAvatar(
-                radius: 44,
-                backgroundColor: _roleColor(p['role']).withValues(alpha: 0.15),
-                child: Text(_initials(p['name']),
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: _roleColor(p['role']))),
-              ),
-              if (_editing) Positioned(bottom: 0, right: 0,
-                child: Container(
-                  width: 28, height: 28,
-                  decoration: BoxDecoration(color: _blue, shape: BoxShape.circle,
-                    border: Border.fromBorderSide(BorderSide(color: _card, width: 2))),
-                  child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 14))),
-            ]),
-            const SizedBox(height: 14),
-            Text(p['name'] ?? '', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _text)),
-            const SizedBox(height: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: _roleColor(p['role']).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(20)),
-              child: Text(_roleLabel(p['role']),
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _roleColor(p['role']))),
-            ),
-          ]),
         ),
+        const SizedBox(height: 18),
 
-        const SizedBox(height: 16),
+        // Datos / edición
+        AppCard(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text('Información personal',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _c.text)),
+                    ),
+                    if (!_editing)
+                      TextButton.icon(
+                        onPressed: () => setState(() => _editing = true),
+                        icon: const Icon(Icons.edit_rounded, size: 18),
+                        label: const Text('Editar'),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                if (_editing) ...[
+                  TextFormField(
+                    controller: _nameCtrl,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      labelText: 'Nombre completo',
+                      prefixIcon: Icon(Icons.person_outline_rounded),
+                    ),
+                    validator: (v) => (v == null || v.trim().length < 3) ? 'Escribe tu nombre' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _phoneCtrl,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      labelText: 'Teléfono',
+                      prefixIcon: Icon(Icons.phone_outlined),
+                    ),
+                    validator: (v) => (v != null && v.trim().length > 20) ? 'Máximo 20 caracteres' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    initialValue: email,
+                    enabled: false,
+                    decoration: const InputDecoration(
+                      labelText: 'Correo (no se puede cambiar)',
+                      prefixIcon: Icon(Icons.mail_outline_rounded),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: _saving ? null : _cancelEdit,
+                          child: const Text('Cancelar'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: _saving ? null : _saveProfile,
+                          child: _saving
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                              : const Text('Guardar cambios'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ] else ...[
+                  _infoRow(Icons.person_outline_rounded, 'Nombre', name),
+                  _infoRow(Icons.mail_outline_rounded, 'Correo', email),
+                  _infoRow(Icons.phone_outlined, 'Teléfono', phone.isEmpty ? 'Sin registrar' : phone),
+                  _infoRow(Icons.badge_outlined, 'Rol', RoleAccess.label(role), last: true),
+                ],
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 18),
 
-        // ── Campos ───────────────────────────────────────────────
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: _card,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: _border.withValues(alpha: 0.6)),
-            boxShadow: [
-              BoxShadow(
-                color: _c.isDark ? const Color(0x33000000) : const Color(0x0A000000),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
+        // Seguridad
+        AppCard(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Column(
+            children: [
+              ListTile(
+                leading: _leadingIcon(Icons.lock_outline_rounded, AppColors.primary),
+                title: Text('Cambiar contraseña',
+                    style: TextStyle(fontWeight: FontWeight.w700, color: _c.text)),
+                subtitle: Text('Actualiza la clave de acceso', style: TextStyle(color: _c.label, fontSize: 12)),
+                trailing: Icon(Icons.chevron_right_rounded, color: _c.hint),
+                onTap: _changePassword,
+              ),
+              Divider(height: 1, indent: 68, color: _c.border),
+              ListTile(
+                leading: _leadingIcon(Icons.logout_rounded, AppColors.danger),
+                title: const Text('Cerrar sesión',
+                    style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.danger)),
+                subtitle: Text('Salir de este dispositivo', style: TextStyle(color: _c.label, fontSize: 12)),
+                onTap: () => performLogout(),
               ),
             ],
           ),
-          child: Column(children: [
-            _buildInfoRow(Icons.person_rounded, 'NOMBRE COMPLETO', _editing
-              ? _buildEditField(_nameCtrl, 'Tu nombre')
-              : Text(p['name'] ?? '–', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _text))),
-            Divider(height: 24, color: _border),
-            _buildInfoRow(Icons.email_rounded, 'CORREO ELECTRÓNICO',
-              Text(p['email'] ?? '–', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _text))),
-            Divider(height: 24, color: _border),
-            _buildInfoRow(Icons.phone_rounded, 'TELÉFONO', _editing
-              ? _buildEditField(_phoneCtrl, '+57 300 000 0000')
-              : Text(p['phone'] ?? 'No registrado', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: p['phone'] != null ? _text : _label))),
-          ]),
         ),
-
-        if (_editing) ...[
-          const SizedBox(height: 16),
-          SizedBox(width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _saving ? null : _saveProfile,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _blue,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              ),
-              child: _saving
-                ? const SizedBox(width: 22, height: 22,
-                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
-                : const Text('Guardar cambios', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-            )),
-        ],
-
-        const SizedBox(height: 16),
-
-        // ── Cerrar sesión ─────────────────────────────────────────
-        SizedBox(width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: () async {
-              await ApiService.logout();
-              await SessionService.logout();
-              if (!context.mounted) return;
-              Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (_) => false);
-            },
-            icon: const Icon(Icons.logout_rounded, color: _danger, size: 18),
-            label: const Text('Cerrar sesión', style: TextStyle(color: _danger, fontWeight: FontWeight.w600)),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              side: const BorderSide(color: _danger, width: 1.5),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            ),
-          )),
-      ]),
+      ],
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String label, Widget content) {
-    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Container(width: 36, height: 36,
-        decoration: BoxDecoration(color: _blue.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)),
-        child: Icon(icon, color: _blue, size: 18)),
-      const SizedBox(width: 14),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: _label, letterSpacing: 0.8)),
-        const SizedBox(height: 4),
-        content,
-      ])),
-    ]);
+  Widget _leadingIcon(IconData icon, Color color) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(color: _c.tint(color), borderRadius: BorderRadius.circular(12)),
+      child: Icon(icon, color: color, size: 20),
+    );
   }
 
-  Widget _buildEditField(TextEditingController ctrl, String hint) {
-    return TextField(
-      controller: ctrl,
-      style: TextStyle(fontSize: 14, color: _text),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(color: _c.hint, fontSize: 13),
-        filled: true,
-        fillColor: _input,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: _border)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _blue, width: 1.5)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: _border)),
+  Widget _infoRow(IconData icon, String label, String value, {bool last = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        border: last ? null : Border(bottom: BorderSide(color: _c.border)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: _c.label),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 90,
+            child: Text(label, style: TextStyle(fontSize: 13, color: _c.label)),
+          ),
+          Expanded(
+            child: Text(value,
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _c.text)),
+          ),
+        ],
       ),
     );
   }
-}
-
-class _ModuleItem {
-  final IconData icon;
-  final String label;
-  final String route;
-  final Color color;
-  const _ModuleItem(this.icon, this.label, this.route, this.color);
 }

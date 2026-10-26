@@ -1,8 +1,8 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../main.dart';
+import '../widgets/app_shell.dart';
 import '../services/api_service.dart';
-import '../widgets/theme_toggle_button.dart';
 import '../widgets/responsive.dart';
 import '../theme/app_colors.dart';
 
@@ -122,119 +122,17 @@ Widget build(BuildContext context) {
 }
 
   // ── TOP BAR ───────────────────────────────────────────────────
-Widget _buildTopBar() {
-    return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-    color: _card,
-    child: Row(
-        children: [
-        Builder(builder: (ctx) => GestureDetector(
-            onTap: () => Scaffold.of(ctx).openDrawer(),
-            child: Container(
-            width: 36, height: 36,
-            decoration: BoxDecoration(
-                color: _blue.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(Icons.menu_rounded, color: _blue, size: 20),
-            ),
-        )),
-        const SizedBox(width: 10),
-        Container(
-            width: 32, height: 32,
-            decoration: BoxDecoration(color: _blue, borderRadius: BorderRadius.circular(8)),
-            child: const Icon(Icons.shield_rounded, color: Colors.white, size: 18),
+  Widget _buildTopBar() => const Padding(
+        padding: EdgeInsets.fromLTRB(16, 14, 16, 12),
+        child: AppTopBar(
+          title: 'Reportes',
+          subtitle: 'Estadísticas de alertas y dispositivos',
+          icon: Icons.assessment_rounded,
         ),
-        const SizedBox(width: 8),
-        Text('Reportes',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _textDark)),
-        const Spacer(),
-        Row(
-          children: [
-            const ThemeToggleButton(),
-            const SizedBox(width: 4),
-            GestureDetector(
-              onTap: () => Navigator.pushNamed(context, AppRoutes.profile),
-              child: CircleAvatar(
-                  radius: 18,
-                  backgroundColor: _blue.withValues(alpha: 0.15),
-                  child: const Icon(Icons.person_rounded, color: _blue, size: 20),
-              ),
-            ),
-          ],
-        ),
-        ],
-    ),
-    );
-}
+      );
 
   // ── DRAWER ────────────────────────────────────────────────────
-Widget _buildDrawer() {
-    const mods = [
-    _RepMod(Icons.dashboard_rounded,            'Dashboard',    AppRoutes.dashboard,     Color(0xFF1A5DC8)),
-    _RepMod(Icons.map_rounded,                  'Mapa',         AppRoutes.map,           Color(0xFF00897B)),
-    _RepMod(Icons.videocam_rounded,             'Cámaras',      AppRoutes.cameraView,    Color(0xFF6D4C41)),
-    _RepMod(Icons.devices_rounded,              'Dispositivos', AppRoutes.devices,       Color(0xFF5E35B1)),
-    _RepMod(Icons.warning_amber_rounded,        'Alertas',      AppRoutes.alerts,        Color(0xFFE53935)),
-    _RepMod(Icons.forum_rounded,                'Comunicación', AppRoutes.communication, Color(0xFF0288D1)),
-    _RepMod(Icons.psychology_rounded,           'IA Hub',       AppRoutes.iaModule,      Color(0xFF7B1FA2)),
-    _RepMod(Icons.assessment_rounded,           'Reportes',     AppRoutes.reportes,      Color(0xFF2E7D32)),
-    _RepMod(Icons.admin_panel_settings_rounded, 'Admin',        AppRoutes.admin,         Color(0xFFAD1457)),
-    ];
-    return Drawer(
-    child: Column(children: [
-        Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(20, 50, 20, 24),
-        decoration: const BoxDecoration(gradient: LinearGradient(
-            begin: Alignment.topLeft, end: Alignment.bottomRight,
-            colors: [Color(0xFF1A5DC8), Color(0xFF0D1B2A)])),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Container(width: 48, height: 48,
-            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(14)),
-            child: const Icon(Icons.shield_rounded, color: Colors.white, size: 28)),
-            const SizedBox(height: 14),
-            const Text('Sentinel SVI', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
-            const Text('Sistema de Vigilancia Integral', style: TextStyle(color: Colors.white60, fontSize: 12)),
-        ]),
-        ),
-        Expanded(child: ListView(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        children: mods.map((mod) {
-            final isCurrent = mod.route == AppRoutes.reportes;
-            return ListTile(
-            leading: Container(width: 38, height: 38,
-                decoration: BoxDecoration(
-                color: isCurrent ? mod.color : mod.color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10)),
-                child: Icon(mod.icon, color: isCurrent ? Colors.white : mod.color, size: 20)),
-            title: Text(mod.label, style: TextStyle(
-                fontSize: 14, fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
-                color: isCurrent ? _blue : _textDark)),
-            trailing: isCurrent ? Container(width: 6, height: 6,
-                decoration: BoxDecoration(color: _blue, shape: BoxShape.circle)) : null,
-            onTap: () {
-                Navigator.pop(context);
-                if (!isCurrent) Navigator.pushNamed(context, mod.route);
-            },
-            );
-        }).toList(),
-        )),
-        const Divider(height: 1),
-        ListTile(
-        leading: const Icon(Icons.logout_rounded, color: _danger),
-        title: const Text('Cerrar sesión', style: TextStyle(color: _danger, fontWeight: FontWeight.w600)),
-        onTap: () async {
-            Navigator.pop(context);
-            await SessionService.logout();
-            if (!context.mounted) return;
-            Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (_) => false);
-        },
-        ),
-        const SizedBox(height: 12),
-    ]),
-    );
-}
+  Widget _buildDrawer() => const AppDrawer(currentRoute: AppRoutes.reportes);
 
   // ── HEADER ────────────────────────────────────────────────────
 Widget _buildHeader() {
@@ -700,14 +598,6 @@ Widget _chartCard({required String title, required Widget child, Widget? trailin
     ),
     );
 }
-}
-
-class _RepMod {
-  final IconData icon;
-  final String label;
-  final String route;
-  final Color color;
-  const _RepMod(this.icon, this.label, this.route, this.color);
 }
 
 // ── LINE CHART PAINTER ────────────────────────────────────────────

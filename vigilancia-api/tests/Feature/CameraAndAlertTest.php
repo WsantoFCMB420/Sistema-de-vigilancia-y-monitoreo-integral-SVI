@@ -45,6 +45,7 @@ class CameraAndAlertTest extends TestCase
     {
         $user = User::factory()->create();
         $camera = Device::create([
+            'user_id'    => $user->id, // el PTZ solo lo usa el dueño o un admin
             'title'      => 'Cámara Patio',
             'status'     => 'Activo',
             'is_ptz'     => true,
@@ -64,7 +65,8 @@ class CameraAndAlertTest extends TestCase
     public function test_can_emit_alert_linked_to_device_with_coordinates_and_lifecycle(): void
     {
         $user = User::factory()->create(['name' => 'Operador 1']);
-        $responder = User::factory()->create(['name' => 'Supervisor Guardia']);
+        // Cambiar el estado de una alerta es permiso de operador o admin
+        $responder = User::factory()->create(['name' => 'Supervisor Guardia', 'role' => 'operator']);
         $camera = Device::create([
             'title'  => 'Cámara Acceso Peatonal',
             'status' => 'Activo',

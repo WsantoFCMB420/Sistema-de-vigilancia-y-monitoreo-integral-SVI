@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../main.dart'; // AppRoutes y SessionService
 import '../widgets/responsive.dart';
-import '../widgets/theme_toggle_button.dart';
+import '../widgets/auth_layout.dart';
 import '../theme/app_colors.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -121,31 +121,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
   // ── BUILD ─────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _c.bg,
-      body: SafeArea(
-        child: ResponsiveShell(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: const [
-                    ThemeToggleButton(),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _buildBrand(),
-                const SizedBox(height: 28),
-                _buildFormCard(),
-                const SizedBox(height: 20),
-                _buildLoginLink(),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return AuthLayout(
+      mobileHeader: _buildBrand(),
+      children: [
+        _buildFormCard(),
+        const SizedBox(height: 20),
+        _buildLoginLink(),
+      ],
     );
   }
 
@@ -234,8 +216,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 keyboardType: TextInputType.emailAddress,
                 validator: (v) {
                   if (v == null || v.isEmpty) return 'Ingresa tu correo';
-                  if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v))
+                  if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v)) {
                     return 'Correo no válido';
+                  }
                   return null;
                 },
               ),
@@ -265,8 +248,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     setState(() => _obscureConfirm = !_obscureConfirm),
                 validator: (v) {
                   if (v == null || v.isEmpty) return 'Confirma tu contraseña';
-                  if (v != _passwordController.text)
+                  if (v != _passwordController.text) {
                     return 'Las contraseñas no coinciden';
+                  }
                   return null;
                 },
               ),
@@ -435,4 +419,3 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 }
-

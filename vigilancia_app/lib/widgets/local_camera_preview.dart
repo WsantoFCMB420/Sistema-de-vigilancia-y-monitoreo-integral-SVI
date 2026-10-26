@@ -3,10 +3,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
-// ignore: undefined_prefixed_name
-import 'dart:ui_web' as ui_web;
+import 'web_camera.dart';
 
 /// Vista en vivo de la webcam del portátil, cámara USB o dispositivo móvil.
 class LocalCameraPreview extends StatefulWidget {
@@ -33,9 +30,9 @@ class LocalCameraPreviewState extends State<LocalCameraPreview> {
   bool _loading = true;
   bool _paused = false;
 
-  // Web HTML stream support
-  String? _webVideoViewId;
-  html.MediaStream? _webMediaStream;
+  // Webcam del navegador (solo en la versión web)
+  WebCameraSession? _webSession;
+  String? get _webVideoViewId => _webSession?.viewId;
 
   ImageFormatGroup get _format {
     switch (defaultTargetPlatform) {
@@ -69,28 +66,14 @@ class LocalCameraPreviewState extends State<LocalCameraPreview> {
 
     if (kIsWeb) {
       try {
-        final mediaStream = await html.window.navigator.mediaDevices?.getUserMedia({
-          'video': {'width': {'ideal': 1280}, 'height': {'ideal': 720}},
-          'audio': false,
-        });
-
-        if (mediaStream != null) {
-          final viewId = 'webcam-html-${DateTime.now().millisecondsSinceEpoch}';
-          final videoElement = html.VideoElement()
-            ..srcObject = mediaStream
-            ..autoplay = true
-            ..muted = true
-            ..style.width = '100%'
-            ..style.height = '100%'
-            ..style.objectFit = 'cover';
-
-          // ignore: undefined_prefixed_name
-          ui_web.platformViewRegistry.registerViewFactory(viewId, (int id) => videoElement);
-
-          if (!mounted) return;
+        final session = await startWebCamera();
+        if (session != null) {
+          if (!mounted) {
+            session.stop();
+            return;
+          }
           setState(() {
-            _webVideoViewId = viewId;
-            _webMediaStream = mediaStream;
+            _webSession = session;
             _loading = false;
             _error = null;
           });
@@ -187,12 +170,9 @@ class LocalCameraPreviewState extends State<LocalCameraPreview> {
   }
 
   Future<void> _syncPlayback() async {
-    if (kIsWeb && _webMediaStream != null) {
+    if (kIsWeb && _webSession != null) {
       try {
-        final tracks = _webMediaStream!.getVideoTracks();
-        for (var track in tracks) {
-          track.enabled = widget.playing;
-        }
+        _webSession!.setEnabled(widget.playing);
       } catch (_) {}
       return;
     }
@@ -249,14 +229,9 @@ class LocalCameraPreviewState extends State<LocalCameraPreview> {
 
   @override
   void dispose() {
-    if (kIsWeb && _webMediaStream != null) {
-      try {
-        final tracks = _webMediaStream!.getTracks();
-        for (var track in tracks) {
-          track.stop();
-        }
-      } catch (_) {}
-    }
+    try {
+      _webSession?.stop();
+    } catch (_) {}
     _controller?.dispose();
     super.dispose();
   }

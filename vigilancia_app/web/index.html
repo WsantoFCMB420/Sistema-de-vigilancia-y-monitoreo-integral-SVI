@@ -18,21 +18,48 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="S.V.I. - Sistema de Vigilancia y Monitoreo Integral del Valle de Ubaté">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1A5DC8">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="vigilancia_app">
+  <meta name="apple-mobile-web-app-title" content="SVI">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>vigilancia_app</title>
+  <title>SVI - Sistema de Vigilancia Integral</title>
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <!-- Pantalla de carga mientras Flutter inicia; se quita sola al pintar el primer frame -->
+  <style>
+    html, body { margin: 0; height: 100%; background: #F2F5FA; }
+    @media (prefers-color-scheme: dark) { html, body { background: #0A1020; } }
+    #svi-loader { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 16px; font-family: Roboto, Arial, sans-serif; color: #5C6B86; }
+    #svi-loader .logo { width: 64px; height: 64px; border-radius: 18px;
+      background: linear-gradient(135deg, #1A5DC8, #0F3E8C); display: flex; align-items: center;
+      justify-content: center; color: #fff; font-weight: 800; font-size: 20px; letter-spacing: 1px; }
+    #svi-loader .bar { width: 120px; height: 4px; border-radius: 4px; background: rgba(26,93,200,.15); overflow: hidden; }
+    #svi-loader .bar::after { content: ""; display: block; width: 40%; height: 100%; background: #1A5DC8;
+      border-radius: 4px; animation: svi-load 1s ease-in-out infinite; }
+    @keyframes svi-load { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
+  </style>
+  <div id="svi-loader">
+    <div class="logo">SVI</div>
+    <div class="bar"></div>
+    <div>Cargando Sistema de Vigilancia…</div>
+  </div>
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var el = document.getElementById('svi-loader');
+      if (el) el.remove();
+    });
+  </script>
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader

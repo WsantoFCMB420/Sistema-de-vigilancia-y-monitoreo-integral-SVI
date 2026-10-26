@@ -6,7 +6,9 @@ import 'package:flutter/services.dart';
 import '../services/api_service.dart';
 import '../main.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_theme.dart';
 import '../widgets/local_camera_preview.dart';
+import '../widgets/app_shell.dart';
 import '../widgets/theme_toggle_button.dart';
 
 class CameraViewScreen extends StatefulWidget {
@@ -15,8 +17,8 @@ class CameraViewScreen extends StatefulWidget {
 
   const CameraViewScreen({
     super.key,
-    this.cameraId = '04',
-    this.cameraName = 'Perimeter North',
+    this.cameraId = '',
+    this.cameraName = '',
   });
 
   @override
@@ -32,7 +34,6 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
 
   bool _isPlaying = true;
   bool _isMuted = false;
-  double _timeline = 0.72; // posición del scrubber
   double _zoom = 1.0;
 
   // ── Datos dinámicos del dispositivo / cámara ─────────────────────────────
@@ -50,6 +51,17 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
   List<dynamic> _availableCameras = [];
   int _currentCameraIndex = 0;
 
+  /// true cuando el usuario ya eligió una cámara (o llegó con una desde otro módulo).
+  bool _hasSelection = false;
+
+  /// true si la cámara pedida no pertenece al usuario (no está en su lista).
+  bool _accessDenied = false;
+
+  /// true cuando ya se consultó la lista de cámaras del usuario.
+  bool _camerasLoaded = false;
+
+  bool get _showingFeed => _hasSelection && !_accessDenied;
+
   @override
   void initState() {
     super.initState();
@@ -62,40 +74,59 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
       if (!mounted) return;
       setState(() {
         _availableCameras = devices;
+        _camerasLoaded = true;
         if (_deviceId != null) {
-          _currentCameraIndex = _availableCameras.indexWhere((d) => d['id'] == _deviceId);
-          if (_currentCameraIndex < 0) _currentCameraIndex = 0;
+          final idx = _availableCameras.indexWhere((d) => '${d['id']}' == '$_deviceId');
+          if (idx < 0) {
+            // La API solo devuelve los dispositivos del usuario (o todos si es admin).
+            // Si no está en la lista, el usuario no tiene acceso a esa cámara.
+            _accessDenied = true;
+            _currentCameraIndex = 0;
+          } else {
+            _accessDenied = false;
+            _currentCameraIndex = idx;
+            final d = _availableCameras[idx];
+            _cameraTitle = (d['title'] ?? _cameraTitle).toString();
+            _streamUrl = (d['stream_url'] ?? '').toString();
+            _ipAddress = (d['ip_address'] ?? '').toString();
+            _isPtz = d['is_ptz'] == true || d['is_ptz'] == 1;
+          }
         }
       });
-    } catch (_) {}
+      // Sin cámara elegida: abre el selector solo si el usuario tiene cámaras.
+      if (!_hasSelection && devices.isNotEmpty) _showCameraSelectionGrid();
+    } catch (_) {
+      if (mounted) setState(() => _camerasLoaded = true);
+    }
   }
 
   void _nextCamera() {
     if (_availableCameras.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No hay más cámaras registradas')),
-      );
+      showAppSnackBar(context, 'No hay más cámaras registradas',
+          backgroundColor: Colors.orange);
       return;
     }
     setState(() {
-      _currentCameraIndex = (_currentCameraIndex + 1) % _availableCameras.length;
+      _currentCameraIndex =
+          (_currentCameraIndex + 1) % _availableCameras.length;
       final d = _availableCameras[_currentCameraIndex];
-      _deviceId = d['id'] is int ? d['id'] : int.tryParse(d['id']?.toString() ?? '');
+      _deviceId =
+          d['id'] is int ? d['id'] : int.tryParse(d['id']?.toString() ?? '');
       _cameraTitle = (d['title'] ?? d['name'] ?? 'Cámara').toString();
       _streamUrl = d['stream_url'] ?? '';
       _ipAddress = d['ip_address'] ?? '';
       _isPtz = d['is_ptz'] == true || d['is_ptz'] == 1;
+      _hasSelection = true;
+      _accessDenied = false;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Cambiando a: $_cameraTitle'),
-        duration: const Duration(seconds: 1),
-      ),
-    );
+    showAppSnackBar(context, 'Cambiando a: $_cameraTitle',
+        backgroundColor: _primaryBlue);
   }
 
   bool get _useLocalCamera =>
-      _streamUrl.isEmpty || ApiService.isLocalCamera(_streamUrl);
+      _hasSelection &&
+      !_accessDenied &&
+      (_streamUrl.isEmpty || ApiService.isLocalCamera(_streamUrl));
 
   @override
   void didChangeDependencies() {
@@ -103,16 +134,29 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
     if (!_argsLoaded) {
       final args = ModalRoute.of(context)?.settings.arguments;
       if (args is Map<String, dynamic>) {
-        _deviceId = args['id'] is int ? args['id'] : int.tryParse(args['id']?.toString() ?? '');
-        _cameraTitle = (args['title'] ?? args['name'] ?? widget.cameraName).toString();
+        _deviceId = args['id'] is int
+            ? args['id']
+            : int.tryParse(args['id']?.toString() ?? '');
+        _cameraTitle =
+            (args['title'] ?? args['name'] ?? widget.cameraName).toString();
         _streamUrl = args['stream_url'] ?? '';
         _ipAddress = args['ip_address'] ?? '';
         _isPtz = args['is_ptz'] == true || args['is_ptz'] == 1;
-      } else {
-        _cameraTitle = widget.cameraName.isNotEmpty ? widget.cameraName : 'Webcam local';
+        _hasSelection = true;
+      } else if (widget.cameraName.isNotEmpty) {
+        _cameraTitle = widget.cameraName;
         _streamUrl = ApiService.localCameraStream;
         _ipAddress = 'dispositivo-local';
         _isPtz = false;
+        _hasSelection = true;
+      } else {
+        // Sin cámara elegida: no se abre ninguna fuente hasta que el usuario
+        // escoja una de SUS cámaras.
+        _cameraTitle = 'Selecciona una cámara';
+        _streamUrl = '';
+        _ipAddress = '';
+        _isPtz = false;
+        _hasSelection = false;
       }
       _argsLoaded = true;
     }
@@ -134,9 +178,7 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _ptzFeedback = 'Error PTZ');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error PTZ: $e'), duration: const Duration(seconds: 2)),
-      );
+      showAppSnackBar(context, 'Error PTZ: $e', backgroundColor: _dangerColor);
     }
   }
 
@@ -149,12 +191,16 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
         child: Column(
           children: [
             _buildAppBar(),
-            _buildInfoChips(),
-            _buildDetectionCards(),
-            Expanded(child: _buildCameraFeed()),
-            _buildControls(),
-            _buildTimeline(),
-            const SizedBox(height: 8),
+            if (_showingFeed) _buildDetectionCards(),
+            // El área de video siempre es oscura (como un reproductor),
+            // así el texto se lee igual en modo claro y oscuro.
+            Expanded(
+              child: ColoredBox(
+                color: const Color(0xFF0D1117),
+                child: _buildCameraFeed(),
+              ),
+            ),
+            if (_showingFeed) _buildControls(),
           ],
         ),
       ),
@@ -168,98 +214,108 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
       child: Row(
         children: [
-          Builder(
-            builder: (ctx) => IconButton(
-              icon: Icon(
-                Icons.menu_rounded,
-                color: _c.text,
-                size: 20,
-              ),
-              onPressed: () => Scaffold.of(ctx).openDrawer(),
-            ),
-          ),
+          const AppMenuButton(),
+          const SizedBox(width: 6),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _deviceId != null ? '#$_deviceId - $_cameraTitle' : _cameraTitle,
-                  style: TextStyle(
-                    color: _c.text,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Row(
+            child: InkWell(
+              onTap: _showCameraSelectionGrid,
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _chip('LIVE', const Color(0xFFE53935)),
-                    const SizedBox(width: 6),
-                    _chip(_ipAddress.isNotEmpty ? _ipAddress : 'WEBCAM / USB', const Color(0xFF1A5DC8)),
-                    const SizedBox(width: 6),
-                    if (_isPtz)
-                      _chip('PTZ ACTIVO', const Color(0xFF00897B))
-                    else
-                      _chip('FIJA', const Color(0xFF6B7A99)),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            _deviceId != null
+                                ? '#$_deviceId - $_cameraTitle'
+                                : _cameraTitle,
+                            style: TextStyle(
+                              color: _c.text,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(Icons.arrow_drop_down_rounded,
+                            color: _c.text, size: 20),
+                      ],
+                    ),
+                    if (_showingFeed) ...[
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        _chip('LIVE', const Color(0xFFE53935)),
+                        const SizedBox(width: 6),
+                        _chip(
+                            _ipAddress.isNotEmpty ? _ipAddress : 'WEBCAM / USB',
+                            const Color(0xFF1A5DC8)),
+                        const SizedBox(width: 6),
+                        if (_isPtz)
+                          _chip('PTZ ACTIVO', const Color(0xFF00897B))
+                        else
+                          _chip('FIJA', const Color(0xFF6B7A99)),
+                      ],
+                    ),
+                    ],
                   ],
                 ),
-              ],
+              ),
             ),
           ),
-          // Siguiente ➔ button
-          ElevatedButton.icon(
-            onPressed: _nextCamera,
-            icon: const Icon(Icons.navigate_next_rounded, size: 14),
-            label: const Text('Siguiente ➔', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _primaryBlue,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+          // Selector de cámaras / siguiente / indicador REC
+          if (isWideLayout(context))
+            FilledButton.tonalIcon(
+              onPressed: _showCameraSelectionGrid,
+              icon: const Icon(Icons.grid_view_rounded, size: 18),
+              label: const Text('Mis cámaras'),
+            )
+          else
+            IconButton(
+              tooltip: 'Mis cámaras',
+              onPressed: _showCameraSelectionGrid,
+              icon: const Icon(Icons.grid_view_rounded, color: _primaryBlue),
             ),
-          ),
-          const SizedBox(width: 4),
-          // REC badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: _dangerColor,
-              borderRadius: BorderRadius.circular(6),
+          if (_showingFeed && _availableCameras.length > 1) ...[
+            const SizedBox(width: 4),
+            IconButton(
+              tooltip: 'Siguiente cámara',
+              onPressed: _nextCamera,
+              icon: const Icon(Icons.skip_next_rounded, color: _primaryBlue),
             ),
-            child: const Row(
-              children: [
-                Icon(Icons.circle, color: Colors.white, size: 6),
-                SizedBox(width: 4),
-                Text(
-                  'REC',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
+          ],
+          if (_showingFeed) ...[
+            const SizedBox(width: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: _dangerColor,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.circle, color: Colors.white, size: 6),
+                  SizedBox(width: 4),
+                  Text('EN VIVO',
+                      style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
+                ],
+              ),
             ),
-          ),
+          ],
           const SizedBox(width: 4),
           const ThemeToggleButton(),
           const SizedBox(width: 4),
-          GestureDetector(
-            onTap: () => Navigator.pushNamed(context, AppRoutes.profile),
-            child: CircleAvatar(
-              radius: 16,
-              backgroundColor: _primaryBlue.withValues(alpha: 0.25),
-              child: const Icon(Icons.person_rounded, color: Colors.white, size: 18),
-            ),
-          ),
+          const ProfileMenuButton(),
           IconButton(
-            icon: const Icon(
+            tooltip: 'Más opciones',
+            icon: Icon(
               Icons.more_vert_rounded,
-              color: Colors.white,
+              color: _c.text,
               size: 20,
             ),
             onPressed: () => _showCameraMenu(),
@@ -269,105 +325,7 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
     );
   }
 
-  Widget _buildDrawer() {
-    final allModules = [
-      _ModuleItem(Icons.dashboard_rounded, 'Dashboard', AppRoutes.dashboard, Color(0xFF1A5DC8)),
-      _ModuleItem(Icons.map_rounded, 'Mapa', AppRoutes.map, Color(0xFF00897B)),
-      _ModuleItem(Icons.videocam_rounded, 'Cámaras', AppRoutes.cameraView, Color(0xFF6D4C41)),
-      _ModuleItem(Icons.devices_rounded, 'Dispositivos', AppRoutes.devices, Color(0xFF5E35B1)),
-      _ModuleItem(Icons.warning_amber_rounded, 'Alertas', AppRoutes.alerts, Color(0xFFE53935)),
-      _ModuleItem(Icons.forum_rounded, 'Comunicación', AppRoutes.communication, Color(0xFF0288D1)),
-      _ModuleItem(Icons.psychology_rounded, 'IA Hub', AppRoutes.iaModule, Color(0xFF7B1FA2)),
-      _ModuleItem(Icons.assessment_rounded, 'Reportes', AppRoutes.reportes, Color(0xFF2E7D32)),
-      _ModuleItem(Icons.admin_panel_settings_rounded, 'Admin', AppRoutes.admin, Color(0xFFAD1457)),
-    ];
-    return Drawer(
-      backgroundColor: _c.card,
-      child: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(20, 50, 20, 24),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF1A5DC8), Color(0xFF0D1B2A)],
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 48, height: 48,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Icon(Icons.shield_rounded, color: Colors.white, size: 28),
-                ),
-                const SizedBox(height: 14),
-                const Text('Sentinel SVI',
-                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
-                const Text('Sistema de Vigilancia Integral',
-                    style: TextStyle(color: Colors.white60, fontSize: 12)),
-              ],
-            ),
-          ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              children: allModules.map((mod) {
-                final isCurrent = mod.route == AppRoutes.cameraView;
-                return ListTile(
-                  leading: Container(
-                    width: 38, height: 38,
-                    decoration: BoxDecoration(
-                      color: isCurrent ? mod.color : mod.color.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(mod.icon, color: isCurrent ? Colors.white : mod.color, size: 20),
-                  ),
-                  title: Text(
-                    mod.label,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
-                      color: isCurrent ? _primaryBlue : _c.text,
-                    ),
-                  ),
-                  trailing: isCurrent
-                      ? Container(
-                          width: 6, height: 6,
-                          decoration: BoxDecoration(color: _primaryBlue, shape: BoxShape.circle),
-                        )
-                      : null,
-                  onTap: () {
-                    Navigator.pop(context);
-                    if (!isCurrent) {
-                      Navigator.pushNamed(context, mod.route);
-                    }
-                  },
-                );
-              }).toList(),
-            ),
-          ),
-          const Divider(height: 1),
-          ListTile(
-            leading: const Icon(Icons.logout_rounded, color: _dangerColor),
-            title: const Text('Cerrar sesión', style: TextStyle(color: _dangerColor, fontWeight: FontWeight.w600)),
-            onTap: () async {
-              Navigator.pop(context);
-              await SessionService.logout();
-              if (!context.mounted) return;
-              Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (_) => false);
-            },
-          ),
-          const SizedBox(height: 12),
-        ],
-      ),
-    );
-  }
+  Widget _buildDrawer() => const AppDrawer(currentRoute: AppRoutes.cameraView);
 
   Widget _chip(String label, Color color) {
     return Container(
@@ -389,7 +347,6 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
     );
   }
 
-  Widget _buildInfoChips() => const SizedBox.shrink();
 
   Widget _buildDetectionCards() {
     return Container(
@@ -433,7 +390,8 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: iconColor.withValues(alpha: 0.25), width: 0.8),
+        border:
+            Border.all(color: iconColor.withValues(alpha: 0.25), width: 0.8),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -471,6 +429,62 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
   }
 
   Widget _buildLiveSource() {
+    if (!_hasSelection || _accessDenied) {
+      final noCameras = _camerasLoaded && _availableCameras.isEmpty;
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                _accessDenied ? Icons.lock_rounded : Icons.videocam_outlined,
+                color: Colors.white38,
+                size: 52,
+              ),
+              const SizedBox(height: 4),
+              const SizedBox(height: 12),
+              Text(
+                _accessDenied
+                    ? 'No tienes acceso a esta cámara'
+                    : (noCameras ? 'Aún no tienes cámaras registradas' : 'Elige una cámara'),
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _accessDenied
+                    ? 'Solo puedes ver las cámaras que registraste.'
+                    : (noCameras
+                        ? 'Registra una cámara en Dispositivos para verla aquí en vivo.'
+                        : 'Selecciona una de tus cámaras para ver la transmisión.'),
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+              ),
+              const SizedBox(height: 18),
+              if (!_camerasLoaded)
+                const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white70),
+                )
+              else if (noCameras)
+                FilledButton.icon(
+                  onPressed: () => navigateToModule(context, AppRoutes.devices),
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('Registrar dispositivo'),
+                )
+              else
+                FilledButton.icon(
+                  onPressed: _showCameraSelectionGrid,
+                  icon: const Icon(Icons.grid_view_rounded),
+                  label: const Text('Mis cámaras'),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
     if (_useLocalCamera) {
       return LocalCameraPreview(
         key: _previewKey,
@@ -487,20 +501,26 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.videocam_off_rounded, color: Colors.white54, size: 48),
+            const Icon(Icons.videocam_off_rounded,
+                color: Colors.white54, size: 48),
             const SizedBox(height: 12),
             Text(
               'Esta cámara de red no se puede previsualizar aquí:\n$_streamUrl',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+              style: const TextStyle(
+                  color: Colors.white70, fontSize: 13, height: 1.4),
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: () {
                 setState(() {
+                  _deviceId = null;
+                  _cameraTitle = 'Cámara de este equipo';
                   _streamUrl = ApiService.localCameraStream;
                   _ipAddress = 'dispositivo-local';
                   _isPtz = false;
+                  _hasSelection = true;
+                  _accessDenied = false;
                 });
               },
               icon: const Icon(Icons.videocam_rounded),
@@ -514,8 +534,10 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
 
   Future<void> _captureSnapshot() async {
     if (!_useLocalCamera) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('La captura solo está disponible en la cámara local.')),
+      showAppSnackBar(
+        context,
+        'La captura solo está disponible en la cámara local.',
+        backgroundColor: Colors.orange,
       );
       return;
     }
@@ -523,8 +545,10 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
       final file = await _previewKey.currentState?.takePicture();
       if (!mounted) return;
       if (file == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se pudo capturar la imagen.')),
+        showAppSnackBar(
+          context,
+          'No se pudo capturar la imagen.',
+          backgroundColor: _dangerColor,
         );
         return;
       }
@@ -532,14 +556,16 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: const Color(0xFF0D1117),
-          title: const Text('Captura guardada', style: TextStyle(color: Colors.white)),
+          title: const Text('Captura guardada',
+              style: TextStyle(color: Colors.white)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               if (!kIsWeb)
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.file(File(file.path), height: 180, fit: BoxFit.cover),
+                  child: Image.file(File(file.path),
+                      height: 180, fit: BoxFit.cover),
                 ),
               const SizedBox(height: 8),
               Text(
@@ -558,8 +584,10 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al capturar: $e')),
+      showAppSnackBar(
+        context,
+        'Error al capturar: $e',
+        backgroundColor: _dangerColor,
       );
     }
   }
@@ -588,17 +616,21 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
               ),
               child: Text(
                 _ptzFeedback!,
-                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700),
               ),
             ),
           ),
         if (_isPtz && !_useLocalCamera)
           Positioned(right: 20, bottom: 60, child: _buildPTZJoystick()),
+        if (_showingFeed)
         Positioned(
           bottom: 8,
           left: 12,
           child: Text(
-            '${TimeOfDay.now().format(context)} LIVE (Zoom: ${_zoom.toStringAsFixed(1)}x)',
+            '${TimeOfDay.now().format(context)} EN VIVO (Zoom: ${_zoom.toStringAsFixed(1)}x)',
             style: const TextStyle(
               color: _primaryBlue,
               fontSize: 11,
@@ -618,7 +650,8 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.55),
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withValues(alpha: 0.15), width: 0.8),
+        border:
+            Border.all(color: Colors.white.withValues(alpha: 0.15), width: 0.8),
       ),
       child: Stack(
         alignment: Alignment.center,
@@ -633,22 +666,29 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
                 color: _primaryBlue,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.pan_tool_rounded, color: Colors.white, size: 14),
+              child: const Icon(Icons.pan_tool_rounded,
+                  color: Colors.white, size: 14),
             ),
           ),
           // Flechas
-          Positioned(top: 8, child: _ptzArrow(Icons.keyboard_arrow_up_rounded, () => _sendPTZ('up'))),
+          Positioned(
+              top: 8,
+              child: _ptzArrow(
+                  Icons.keyboard_arrow_up_rounded, () => _sendPTZ('up'))),
           Positioned(
             bottom: 8,
-            child: _ptzArrow(Icons.keyboard_arrow_down_rounded, () => _sendPTZ('down')),
+            child: _ptzArrow(
+                Icons.keyboard_arrow_down_rounded, () => _sendPTZ('down')),
           ),
           Positioned(
             left: 8,
-            child: _ptzArrow(Icons.keyboard_arrow_left_rounded, () => _sendPTZ('left')),
+            child: _ptzArrow(
+                Icons.keyboard_arrow_left_rounded, () => _sendPTZ('left')),
           ),
           Positioned(
             right: 8,
-            child: _ptzArrow(Icons.keyboard_arrow_right_rounded, () => _sendPTZ('right')),
+            child: _ptzArrow(
+                Icons.keyboard_arrow_right_rounded, () => _sendPTZ('right')),
           ),
         ],
       ),
@@ -710,7 +750,8 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
               _sendPTZ('zoom_in');
             },
           ),
-          _controlBtn(Icons.notifications_active_rounded, onTap: _showAlarmDialog),
+          _controlBtn(Icons.notifications_active_rounded,
+              onTap: _showAlarmDialog),
         ],
       ),
     );
@@ -732,70 +773,38 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
   }
 
   // ── Timeline scrubber ──────────────────────────────────────────────────────
-  Widget _buildTimeline() {
-    return Container(
-      color: _c.card,
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
-      child: Column(
-        children: [
-          SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              trackHeight: 4,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
-              overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-              activeTrackColor: _primaryBlue,
-              inactiveTrackColor: Colors.white.withValues(alpha: 0.15),
-              thumbColor: _primaryBlue,
-              overlayColor: _primaryBlue.withValues(alpha: 0.2),
-            ),
-            child: Slider(
-              value: _timeline,
-              onChanged: (v) => setState(() => _timeline = v),
-            ),
-          ),
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '19:45:00',
-                style: TextStyle(color: Colors.white38, fontSize: 10),
-              ),
-              Text(
-                '19:50:00',
-                style: TextStyle(color: Colors.white38, fontSize: 10),
-              ),
-              Text(
-                '19:55:00',
-                style: TextStyle(color: Colors.white38, fontSize: 10),
-              ),
-              Text(
-                '20:00:14',
-                style: TextStyle(
-                  color: Color(0xFF1A5DC8),
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+
 
   // ── Acciones ──────────────────────────────────────────────────────────────
   void _showAlarmDialog() {
     int selectedTypeIndex = 0;
     String selectedPriority = 'Crítica';
-    final descController = TextEditingController(text: 'Alerta generada desde cámara: $_cameraTitle');
+    final descController = TextEditingController(
+        text: 'Alerta generada desde cámara: $_cameraTitle');
     final locationController = TextEditingController(text: _cameraTitle);
     bool shareToChat = true;
 
     final types = [
-      {'label': 'Seguridad', 'icon': Icons.shield_rounded, 'color': const Color(0xFF1A5DC8)},
-      {'label': 'Incendio', 'icon': Icons.local_fire_department_rounded, 'color': const Color(0xFFFF6D00)},
-      {'label': 'Médico', 'icon': Icons.medical_services_rounded, 'color': const Color(0xFF43A047)},
-      {'label': 'Técnico', 'icon': Icons.engineering_rounded, 'color': const Color(0xFF7B1FA2)},
+      {
+        'label': 'Seguridad',
+        'icon': Icons.shield_rounded,
+        'color': const Color(0xFF1A5DC8)
+      },
+      {
+        'label': 'Incendio',
+        'icon': Icons.local_fire_department_rounded,
+        'color': const Color(0xFFFF6D00)
+      },
+      {
+        'label': 'Médico',
+        'icon': Icons.medical_services_rounded,
+        'color': const Color(0xFF43A047)
+      },
+      {
+        'label': 'Técnico',
+        'icon': Icons.engineering_rounded,
+        'color': const Color(0xFF7B1FA2)
+      },
     ];
 
     final priorities = ['Baja', 'Media', 'Crítica'];
@@ -810,7 +819,8 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
             color: Color(0xFF0D1117),
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
-          padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+          padding: EdgeInsets.fromLTRB(
+              24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -837,7 +847,11 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                const Text('TIPO DE INCIDENTE', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.w700)),
+                const Text('TIPO DE INCIDENTE',
+                    style: TextStyle(
+                        color: Colors.white54,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700)),
                 const SizedBox(height: 8),
                 GridView.builder(
                   shrinkWrap: true,
@@ -856,17 +870,30 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
                     return GestureDetector(
                       onTap: () => setModalState(() => selectedTypeIndex = i),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 8),
                         decoration: BoxDecoration(
-                          color: selected ? color.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.05),
+                          color: selected
+                              ? color.withValues(alpha: 0.2)
+                              : Colors.white.withValues(alpha: 0.05),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: selected ? color : Colors.white12, width: selected ? 2 : 1),
+                          border: Border.all(
+                              color: selected ? color : Colors.white12,
+                              width: selected ? 2 : 1),
                         ),
                         child: Row(
                           children: [
-                            Icon(t['icon'] as IconData, color: selected ? color : Colors.white60, size: 18),
+                            Icon(t['icon'] as IconData,
+                                color: selected ? color : Colors.white60,
+                                size: 18),
                             const SizedBox(width: 8),
-                            Text(t['label'] as String, style: TextStyle(color: selected ? Colors.white : Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
+                            Text(t['label'] as String,
+                                style: TextStyle(
+                                    color: selected
+                                        ? Colors.white
+                                        : Colors.white70,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600)),
                           ],
                         ),
                       ),
@@ -874,12 +901,20 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
-                const Text('PRIORIDAD', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.w700)),
+                const Text('PRIORIDAD',
+                    style: TextStyle(
+                        color: Colors.white54,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700)),
                 const SizedBox(height: 8),
                 Row(
                   children: priorities.map((p) {
                     final selected = selectedPriority == p;
-                    final color = p == 'Crítica' ? const Color(0xFFE53935) : (p == 'Media' ? const Color(0xFFFFA000) : const Color(0xFF43A047));
+                    final color = p == 'Crítica'
+                        ? const Color(0xFFE53935)
+                        : (p == 'Media'
+                            ? const Color(0xFFFFA000)
+                            : const Color(0xFF43A047));
                     return Expanded(
                       child: GestureDetector(
                         onTap: () => setModalState(() => selectedPriority = p),
@@ -888,18 +923,31 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
                           padding: const EdgeInsets.symmetric(vertical: 10),
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
-                            color: selected ? color.withValues(alpha: 0.25) : Colors.white.withValues(alpha: 0.05),
+                            color: selected
+                                ? color.withValues(alpha: 0.25)
+                                : Colors.white.withValues(alpha: 0.05),
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: selected ? color : Colors.white12, width: selected ? 2 : 1),
+                            border: Border.all(
+                                color: selected ? color : Colors.white12,
+                                width: selected ? 2 : 1),
                           ),
-                          child: Text(p, style: TextStyle(color: selected ? Colors.white : Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
+                          child: Text(p,
+                              style: TextStyle(
+                                  color:
+                                      selected ? Colors.white : Colors.white70,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600)),
                         ),
                       ),
                     );
                   }).toList(),
                 ),
                 const SizedBox(height: 16),
-                const Text('UBICACIÓN', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.w700)),
+                const Text('UBICACIÓN',
+                    style: TextStyle(
+                        color: Colors.white54,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700)),
                 const SizedBox(height: 8),
                 TextField(
                   controller: locationController,
@@ -907,12 +955,19 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
                   decoration: InputDecoration(
                     filled: true,
                     fillColor: Colors.white.withValues(alpha: 0.05),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 12),
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text('DESCRIPCIÓN', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.w700)),
+                const Text('DESCRIPCIÓN',
+                    style: TextStyle(
+                        color: Colors.white54,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700)),
                 const SizedBox(height: 8),
                 TextField(
                   controller: descController,
@@ -921,18 +976,25 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
                   decoration: InputDecoration(
                     filled: true,
                     fillColor: Colors.white.withValues(alpha: 0.05),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 12),
                   ),
                 ),
                 const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Compartir en chat de comunicación', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500)),
+                    const Text('Compartir en chat de comunicación',
+                        style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500)),
                     Switch(
                       value: shareToChat,
-                      activeColor: const Color(0xFF1A5DC8),
+                      activeThumbColor: const Color(0xFF1A5DC8),
                       onChanged: (v) => setModalState(() => shareToChat = v),
                     ),
                   ],
@@ -944,7 +1006,8 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFE53935),
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                     ),
                     onPressed: () async {
                       final type = types[selectedTypeIndex]['label'] as String;
@@ -959,23 +1022,22 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
                           description: desc,
                           deviceId: _deviceId,
                           status: 'Pendiente',
+                          shareToChat: shareToChat,
                         );
-                        if (shareToChat) {
-                          try {
-                            await ApiService.sendMessage('🚨 [ALERTA DESDE CÁMARA: $_cameraTitle]\nTipo: $type | Prioridad: $selectedPriority\nUbicación: $loc\nDescripción: ${desc.isNotEmpty ? desc : 'Sin descripción'}\n${_deviceId != null ? '📹 Cámara ID: $_deviceId' : ''}');
-                          } catch (_) {}
-                        }
                         if (!mounted) return;
                         showDialog(
                           context: context,
                           builder: (ctx) => AlertDialog(
                             backgroundColor: const Color(0xFF0D1117),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16)),
                             title: const Row(
                               children: [
-                                Icon(Icons.check_circle_rounded, color: Color(0xFF43A047), size: 24),
+                                Icon(Icons.check_circle_rounded,
+                                    color: Color(0xFF43A047), size: 24),
                                 SizedBox(width: 8),
-                                Text('Alerta Emitida', style: TextStyle(color: Colors.white)),
+                                Text('Alerta Emitida',
+                                    style: TextStyle(color: Colors.white)),
                               ],
                             ),
                             content: Text(
@@ -993,12 +1055,18 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
                         );
                       } catch (e) {
                         if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Error al emitir alerta: $e'), backgroundColor: Colors.redAccent),
+                        showAppSnackBar(
+                          context,
+                          'Error al emitir alerta: $e',
+                          backgroundColor: Colors.redAccent,
                         );
                       }
                     },
-                    child: const Text('EMITIR ALERTA', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                    child: const Text('EMITIR ALERTA',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14)),
                   ),
                 ),
               ],
@@ -1006,6 +1074,243 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  // ── Modal Grid de Selección de Cámaras ──────────────────────────────────────
+  void _showCameraSelectionGrid() async {
+    if (_availableCameras.isEmpty) {
+      try {
+        final devices = await ApiService.getDevices();
+        if (mounted) {
+          setState(() {
+            _availableCameras = devices;
+          });
+        }
+      } catch (_) {}
+    }
+
+    if (!mounted) return;
+    if (_availableCameras.isEmpty) {
+      showAppSnackBar(context, 'Aún no tienes cámaras registradas. Agrégalas en Dispositivos.',
+          backgroundColor: Colors.orange);
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          return Container(
+            decoration: BoxDecoration(
+              color: _c.card,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            padding: EdgeInsets.fromLTRB(
+              20,
+              20,
+              20,
+              MediaQuery.of(ctx).viewInsets.bottom + 20,
+            ),
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.75,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[400],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: _primaryBlue.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.grid_view_rounded,
+                              color: _primaryBlue, size: 20),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Seleccionar Cámara',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: _c.text,
+                          ),
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.close_rounded, color: _c.label),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                if (_availableCameras.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(
+                      child: Text(
+                        'No hay cámaras registradas',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    ),
+                  )
+                else
+                  Expanded(
+                    child: GridView.builder(
+                      shrinkWrap: true,
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        childAspectRatio: 1.3,
+                      ),
+                      itemCount: _availableCameras.length,
+                      itemBuilder: (context, index) {
+                        final camera = _availableCameras[index];
+                        final isSelected = camera['id'] == _deviceId;
+                        final title = (camera['title'] ??
+                                camera['name'] ??
+                                'Cámara ${index + 1}')
+                            .toString();
+                        final ip = (camera['ip_address'] ?? '').toString();
+                        final isPtz =
+                            camera['is_ptz'] == true || camera['is_ptz'] == 1;
+
+                        return InkWell(
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            _selectCamera(camera, index);
+                          },
+                          borderRadius: BorderRadius.circular(14),
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? _primaryBlue.withValues(alpha: 0.15)
+                                  : _c.input,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: isSelected ? _primaryBlue : _c.border,
+                                width: isSelected ? 2 : 1,
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 14,
+                                      backgroundColor: isSelected
+                                          ? _primaryBlue
+                                          : _primaryBlue.withValues(
+                                              alpha: 0.12),
+                                      child: Icon(
+                                        Icons.videocam_rounded,
+                                        size: 16,
+                                        color: isSelected
+                                            ? Colors.white
+                                            : _primaryBlue,
+                                      ),
+                                    ),
+                                    if (isPtz)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF00897B)
+                                              .withValues(alpha: 0.2),
+                                          borderRadius:
+                                              BorderRadius.circular(4),
+                                        ),
+                                        child: const Text(
+                                          'PTZ',
+                                          style: TextStyle(
+                                            color: Color(0xFF00897B),
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  title,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                    color: _c.text,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  ip.isNotEmpty ? ip : 'Local / USB',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: _c.label,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _selectCamera(dynamic camera, int index) {
+    setState(() {
+      _currentCameraIndex = index;
+      _deviceId = camera['id'] is int
+          ? camera['id']
+          : int.tryParse(camera['id']?.toString() ?? '');
+      _cameraTitle = (camera['title'] ?? camera['name'] ?? 'Cámara').toString();
+      _streamUrl = camera['stream_url'] ?? '';
+      _ipAddress = camera['ip_address'] ?? '';
+      _isPtz = camera['is_ptz'] == true || camera['is_ptz'] == 1;
+      _hasSelection = true;
+      _accessDenied = false;
+    });
+    showAppSnackBar(
+      context,
+      'Cámara seleccionada: $_cameraTitle',
+      backgroundColor: _primaryBlue,
     );
   }
 
@@ -1024,11 +1329,11 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             _menuItem(
-              Icons.download_rounded,
-              'Descargar grabación',
+              Icons.video_library_rounded,
+              'Ver grabaciones',
               onTap: () {
                 Navigator.pop(ctx);
-                _downloadRecording();
+                _showRecordings();
               },
             ),
             const SizedBox(height: 8),
@@ -1083,69 +1388,81 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
     );
   }
 
-  Future<void> _downloadRecording() async {
-    final fileName = 'grabacion_${_deviceId ?? 'local'}_${DateTime.now().millisecondsSinceEpoch}.mp4';
-    showDialog(
+  /// Grabaciones de la cámara. Aquí (y no en la vista en vivo) va la línea de
+  /// tiempo para adelantar o retroceder, porque solo aplica a video grabado.
+  void _showRecordings() {
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF0D1117),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.download_rounded, color: _primaryBlue, size: 24),
-            SizedBox(width: 8),
-            Text('Descargar Grabación', style: TextStyle(color: Colors.white)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Archivo: $fileName', style: const TextStyle(color: Colors.white70, fontSize: 13)),
-            const SizedBox(height: 8),
-            const Text('Ubicación: Descargas / SVI_Recordings', style: TextStyle(color: Colors.white54, fontSize: 11)),
-            const SizedBox(height: 12),
-            const Text('¿Desea descargar este segmento de grabación en su dispositivo?', style: TextStyle(color: Colors.white, fontSize: 13)),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancelar', style: TextStyle(color: Colors.white54)),
+      useSafeArea: true,
+      constraints: const BoxConstraints(maxWidth: 560),
+      builder: (sheetCtx) {
+        final c = AppColors.of(sheetCtx);
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(color: c.border, borderRadius: BorderRadius.circular(2)),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(color: c.tint(_primaryBlue), borderRadius: BorderRadius.circular(12)),
+                    child: const Icon(Icons.video_library_rounded, color: _primaryBlue),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Grabaciones',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: c.text)),
+                        Text(_cameraTitle, style: TextStyle(fontSize: 12, color: c.label)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              Icon(Icons.history_toggle_off_rounded, size: 46, color: c.hint),
+              const SizedBox(height: 10),
+              Text('Esta cámara aún no tiene grabaciones guardadas',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: c.text)),
+              const SizedBox(height: 6),
+              Text(
+                'Cuando el sistema guarde grabaciones, aquí podrás reproducirlas y '
+                'usar la línea de tiempo para adelantar o retroceder.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: c.label, height: 1.4),
+              ),
+            ],
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: _primaryBlue),
-            onPressed: () {
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Descarga completada: $fileName (Guardado en SVI_Recordings)'),
-                  backgroundColor: _primaryBlue,
-                  duration: const Duration(seconds: 3),
-                ),
-              );
-            },
-            child: const Text('Descargar / Guardar'),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
   void _shareFeed() {
-    final url = _streamUrl.isNotEmpty ? _streamUrl : ApiService.localCameraStream;
+    final url =
+        _streamUrl.isNotEmpty ? _streamUrl : ApiService.localCameraStream;
     Clipboard.setData(ClipboardData(text: url));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('URL del feed copiada al portapapeles: $url'),
-        backgroundColor: _primaryBlue,
-        duration: const Duration(seconds: 3),
-      ),
+    showAppSnackBar(
+      context,
+      'URL del feed copiada al portapapeles: $url',
+      backgroundColor: _primaryBlue,
     );
   }
 
   void _showCameraSettings() {
-    final url = _streamUrl.isNotEmpty ? _streamUrl : ApiService.localCameraStream;
+    final url =
+        _streamUrl.isNotEmpty ? _streamUrl : ApiService.localCameraStream;
     final ip = _ipAddress.isNotEmpty ? _ipAddress : '127.0.0.1 (Local)';
 
     String port = '8080';
@@ -1174,7 +1491,10 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
             Expanded(
               child: Text(
                 'Configuración - $_cameraTitle',
-                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -1192,7 +1512,11 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
             const Divider(color: Colors.white12, height: 16),
             _settingRow('URL de Stream', url),
             const Divider(color: Colors.white12, height: 16),
-            _settingRow('Estado PTZ', _isPtz ? 'Habilitado (Control Activo)' : 'Deshabilitado (Cámara Fija)'),
+            _settingRow(
+                'Estado PTZ',
+                _isPtz
+                    ? 'Habilitado (Control Activo)'
+                    : 'Deshabilitado (Cámara Fija)'),
           ],
         ),
         actions: [
@@ -1211,7 +1535,11 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
       children: [
         Text(
           label.toUpperCase(),
-          style: const TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 0.5),
+          style: const TextStyle(
+              color: Colors.white54,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.5),
         ),
         const SizedBox(height: 2),
         SelectableText(
@@ -1223,10 +1551,3 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
   }
 }
 
-class _ModuleItem {
-  final IconData icon;
-  final String label;
-  final String route;
-  final Color color;
-  const _ModuleItem(this.icon, this.label, this.route, this.color);
-}

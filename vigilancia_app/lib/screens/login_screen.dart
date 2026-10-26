@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../main.dart'; // SessionService y AppRoutes
 import '../widgets/responsive.dart';
-import '../widgets/theme_toggle_button.dart';
+import '../widgets/auth_layout.dart';
 import '../theme/app_colors.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -180,8 +180,7 @@ class _LoginScreenState extends State<LoginScreen> {
             actions: [
               TextButton(
                 onPressed: loading ? null : () => Navigator.pop(ctx),
-                child: Text('Cancelar',
-                    style: TextStyle(color: _c.label)),
+                child: Text('Cancelar', style: TextStyle(color: _c.label)),
               ),
               ElevatedButton(
                 onPressed: loading
@@ -264,32 +263,11 @@ class _LoginScreenState extends State<LoginScreen> {
   // ── BUILD ─────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _c.bg,
-      body: SafeArea(
-        child: ResponsiveShell(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: const [
-                    ThemeToggleButton(),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _buildBrand(),
-                const SizedBox(height: 32),
-                _buildFormCard(),
-                const SizedBox(height: 24),
-                _buildBiometricOption(),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return AuthLayout(
+      mobileHeader: _buildBrand(),
+      children: [
+        _buildFormCard(),
+      ],
     );
   }
 
@@ -414,8 +392,9 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
       validator: (v) {
         if (v == null || v.isEmpty) return 'Ingrese su correo';
-        if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v))
+        if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v)) {
           return 'Correo no válido';
+        }
         return null;
       },
     );
@@ -531,38 +510,5 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   // ── BIOMÉTRICO ────────────────────────────────────────────────
-  Widget _buildBiometricOption() {
-    return Column(
-      children: [
-        GestureDetector(
-          onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Biométrico próximamente')),
-            );
-          },
-          child: Container(
-            width: 54,
-            height: 54,
-            decoration: BoxDecoration(
-              color: _c.card,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4)),
-              ],
-            ),
-            child: const Icon(Icons.fingerprint_rounded,
-                size: 30, color: _primaryBlue),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text('Ingreso Biométrico',
-            style: TextStyle(
-                fontSize: 12, color: _c.label, fontWeight: FontWeight.w500)),
-      ],
-    );
-  }
-}
 
+}

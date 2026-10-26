@@ -49,6 +49,7 @@ class AlertController extends Controller
             'status'      => 'nullable|string|in:Pendiente,En atención,Resuelta,Falsa Alarma',
             'latitude'    => 'nullable|numeric',
             'longitude'   => 'nullable|numeric',
+            'share_to_chat' => 'nullable|boolean',
         ]);
 
         $alert = $request->user()->alerts()->create([
@@ -72,9 +73,11 @@ class AlertController extends Controller
             $messageText .= " | Detalle: {$alert->description}";
         }
 
-        $request->user()->messages()->create([
-            'text' => $messageText,
-        ]);
+        if ($request->boolean('share_to_chat', true)) {
+            $request->user()->messages()->create([
+                'text' => $messageText,
+            ]);
+        }
 
         return response()->json([
             'message' => 'Alerta emitida correctamente',
@@ -99,6 +102,13 @@ class AlertController extends Controller
     // ── PUT /alerts/{id} ──────────────────────────────────────────
     public function update(Request $request, $id)
     {
+        $user = $request->user();
+        if (!$user || !in_array($user->role, ['admin', 'operator'])) {
+            return response()->json([
+                'error' => 'Acceso denegado. No tienes permisos para esta acción.',
+            ], 403);
+        }
+
         $alert = Alert::findOrFail($id);
 
         $request->validate([
@@ -150,6 +160,13 @@ class AlertController extends Controller
     // ── PATCH /alerts/{id}/status ──────────────────────────────────
     public function updateStatus(Request $request, $id)
     {
+        $user = $request->user();
+        if (!$user || !in_array($user->role, ['admin', 'operator'])) {
+            return response()->json([
+                'error' => 'Acceso denegado. No tienes permisos para esta acción.',
+            ], 403);
+        }
+
         $alert = Alert::findOrFail($id);
 
         $validated = $request->validate([
@@ -189,9 +206,17 @@ class AlertController extends Controller
     }
 
     // ── DELETE /alerts/{id} ───────────────────────────────────────
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
         $alert = Alert::findOrFail($id);
+        $user  = $request->user();
+
+        // Admin y operador pueden eliminar cualquier alerta; el visitante solo las suyas.
+        $canManage = in_array($user->role, ['admin', 'operator']);
+        if (!$canManage && (int) $alert->user_id !== (int) $user->id) {
+            return response()->json(['error' => 'No puedes eliminar esta alerta.'], 403);
+        }
+
         $alert->delete();
 
         return response()->json(['message' => 'Alerta eliminada']);
