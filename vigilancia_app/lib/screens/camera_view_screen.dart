@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -8,6 +9,7 @@ import '../main.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 import '../widgets/local_camera_preview.dart';
+import '../widgets/recordings_sheet.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/theme_toggle_button.dart';
 
@@ -34,6 +36,13 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
 
   bool _isPlaying = true;
   bool _isMuted = false;
+
+  // Grabación de clips (solo cámara local: webcam o celular)
+  static const int _maxRecordSeconds = 60;
+  bool _isRecording = false;
+  bool _uploading = false;
+  int _recordSeconds = 0;
+  Timer? _recordTimer;
   double _zoom = 1.0;
 
   // ── Datos dinámicos del dispositivo / cámara ─────────────────────────────
@@ -68,6 +77,79 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
     _loadAvailableCameras();
   }
 
+  @override
+  void dispose() {
+    _recordTimer?.cancel();
+    super.dispose();
+  }
+
+  // ── Grabación ────────────────────────────────────────────────────────────
+  Future<void> _toggleRecording() async {
+    if (_uploading) return;
+    if (_isRecording) {
+      await _stopAndUpload();
+      return;
+    }
+    if (!_useLocalCamera) {
+      showAppSnackBar(context,
+          'Las cámaras IP (RTSP) no se pueden grabar desde la app; solo la cámara de este equipo o del celular.',
+          backgroundColor: Colors.orange);
+      return;
+    }
+    final preview = _previewKey.currentState;
+    if (preview == null || !preview.canRecord) {
+      showAppSnackBar(context, 'Este navegador o dispositivo no permite grabar video.',
+          backgroundColor: Colors.orange);
+      return;
+    }
+    try {
+      await preview.startRecording();
+      if (!mounted) return;
+      setState(() {
+        _isRecording = true;
+        _recordSeconds = 0;
+      });
+      _recordTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) return;
+        setState(() => _recordSeconds++);
+        if (_recordSeconds >= _maxRecordSeconds) _stopAndUpload();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, 'No se pudo iniciar la grabación: $e', backgroundColor: _dangerColor);
+    }
+  }
+
+  Future<void> _stopAndUpload() async {
+    _recordTimer?.cancel();
+    _recordTimer = null;
+    if (!_isRecording) return;
+    setState(() {
+      _isRecording = false;
+      _uploading = true;
+    });
+    try {
+      final clip = await _previewKey.currentState?.stopRecording();
+      if (clip == null || clip.bytes.isEmpty) {
+        throw Exception('No se obtuvo video de la cámara');
+      }
+      await ApiService.uploadRecording(
+        bytes: clip.bytes,
+        extension: clip.extension,
+        deviceId: _deviceId,
+        durationSeconds: clip.duration.inSeconds,
+      );
+      if (!mounted) return;
+      showAppSnackBar(context, 'Grabación guardada (${clip.duration.inSeconds} s)',
+          icon: Icons.check_circle_rounded);
+    } catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.toString().replaceFirst('Exception: ', ''), backgroundColor: _dangerColor);
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
   Future<void> _loadAvailableCameras() async {
     try {
       final devices = await ApiService.getDevices();
@@ -100,7 +182,15 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
     }
   }
 
+  bool _blockedByRecording() {
+    if (!_isRecording && !_uploading) return false;
+    showAppSnackBar(context, 'Termina la grabación antes de cambiar de cámara.',
+        backgroundColor: Colors.orange);
+    return true;
+  }
+
   void _nextCamera() {
+    if (_blockedByRecording()) return;
     if (_availableCameras.isEmpty) {
       showAppSnackBar(context, 'No hay más cámaras registradas',
           backgroundColor: Colors.orange);
@@ -281,6 +371,11 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
               onPressed: _showCameraSelectionGrid,
               icon: const Icon(Icons.grid_view_rounded, color: _primaryBlue),
             ),
+          IconButton(
+            tooltip: 'Grabaciones',
+            onPressed: _showRecordings,
+            icon: const Icon(Icons.video_library_rounded, color: _primaryBlue),
+          ),
           if (_showingFeed && _availableCameras.length > 1) ...[
             const SizedBox(width: 4),
             IconButton(
@@ -715,6 +810,7 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
             onTap: () => setState(() => _isMuted = !_isMuted),
           ),
           _controlBtn(Icons.camera_alt_rounded, onTap: _captureSnapshot),
+          _buildRecordButton(),
           _controlBtn(
             Icons.zoom_out_rounded,
             onTap: () {
@@ -753,6 +849,48 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
           _controlBtn(Icons.notifications_active_rounded,
               onTap: _showAlarmDialog),
         ],
+      ),
+    );
+  }
+
+  Widget _buildRecordButton() {
+    final label = _uploading
+        ? 'Subiendo…'
+        : (_isRecording
+            ? '${(_recordSeconds ~/ 60).toString().padLeft(2, '0')}:${(_recordSeconds % 60).toString().padLeft(2, '0')}'
+            : 'Grabar');
+    return Tooltip(
+      message: _isRecording ? 'Detener y guardar' : 'Grabar clip (máx. 60 s)',
+      child: InkWell(
+        onTap: _uploading ? null : _toggleRecording,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: _isRecording ? _dangerColor : Colors.white.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_uploading)
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
+              else
+                Icon(
+                  _isRecording ? Icons.stop_rounded : Icons.fiber_manual_record_rounded,
+                  color: _isRecording ? Colors.white : _dangerColor,
+                  size: 18,
+                ),
+              const SizedBox(width: 6),
+              Text(label,
+                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1295,6 +1433,7 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
   }
 
   void _selectCamera(dynamic camera, int index) {
+    if (_blockedByRecording()) return;
     setState(() {
       _currentCameraIndex = index;
       _deviceId = camera['id'] is int
@@ -1391,61 +1530,10 @@ class _CameraViewScreenState extends State<CameraViewScreen> {
   /// Grabaciones de la cámara. Aquí (y no en la vista en vivo) va la línea de
   /// tiempo para adelantar o retroceder, porque solo aplica a video grabado.
   void _showRecordings() {
-    showModalBottomSheet(
-      context: context,
-      useSafeArea: true,
-      constraints: const BoxConstraints(maxWidth: 560),
-      builder: (sheetCtx) {
-        final c = AppColors.of(sheetCtx);
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(color: c.border, borderRadius: BorderRadius.circular(2)),
-              ),
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(color: c.tint(_primaryBlue), borderRadius: BorderRadius.circular(12)),
-                    child: const Icon(Icons.video_library_rounded, color: _primaryBlue),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Grabaciones',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: c.text)),
-                        Text(_cameraTitle, style: TextStyle(fontSize: 12, color: c.label)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              Icon(Icons.history_toggle_off_rounded, size: 46, color: c.hint),
-              const SizedBox(height: 10),
-              Text('Esta cámara aún no tiene grabaciones guardadas',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: c.text)),
-              const SizedBox(height: 6),
-              Text(
-                'Cuando el sistema guarde grabaciones, aquí podrás reproducirlas y '
-                'usar la línea de tiempo para adelantar o retroceder.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: c.label, height: 1.4),
-              ),
-            ],
-          ),
-        );
-      },
+    RecordingsSheet.show(
+      context,
+      deviceId: _deviceId,
+      title: _deviceId != null ? _cameraTitle : 'Todas mis grabaciones',
     );
   }
 

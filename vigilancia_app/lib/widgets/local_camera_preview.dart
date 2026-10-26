@@ -190,6 +190,46 @@ class LocalCameraPreviewState extends State<LocalCameraPreview> {
     } catch (_) {}
   }
 
+  // ── Grabación de video ──────────────────────────────────────────────
+  DateTime? _recordingStarted;
+
+  /// true si esta cámara puede grabar clips en este dispositivo.
+  bool get canRecord {
+    if (kIsWeb) return _webSession?.canRecord ?? false;
+    final controller = _controller;
+    return controller != null && controller.value.isInitialized;
+  }
+
+  Future<void> startRecording() async {
+    _recordingStarted = DateTime.now();
+    if (kIsWeb) {
+      _webSession?.startRecording();
+      return;
+    }
+    final controller = _controller;
+    if (controller == null || controller.value.isRecordingVideo) return;
+    await controller.startVideoRecording();
+  }
+
+  Future<RecordedClip?> stopRecording() async {
+    final started = _recordingStarted ?? DateTime.now();
+    _recordingStarted = null;
+    if (kIsWeb) return _webSession?.stopRecording();
+
+    final controller = _controller;
+    if (controller == null || !controller.value.isRecordingVideo) return null;
+    final file = await controller.stopVideoRecording();
+    final bytes = await file.readAsBytes();
+    final name = file.name.isNotEmpty ? file.name : file.path;
+    final dot = name.lastIndexOf('.');
+    final ext = dot >= 0 ? name.substring(dot + 1).toLowerCase() : 'mp4';
+    return RecordedClip(
+      bytes: bytes,
+      extension: ext.isEmpty ? 'mp4' : ext,
+      duration: DateTime.now().difference(started),
+    );
+  }
+
   Future<XFile?> takePicture() async {
     if (kIsWeb) {
       return null;

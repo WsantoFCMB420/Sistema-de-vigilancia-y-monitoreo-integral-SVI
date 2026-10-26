@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../main.dart' show SessionService;
@@ -299,6 +300,56 @@ class ApiService {
     final response = await _authed('GET', '/reports');
     if (response.statusCode == 200) return jsonDecode(response.body);
     throw _handleError(response, 'Error al cargar reportes');
+  }
+
+  // ── Grabaciones ───────────────────────────────────────────────
+  static Future<List<dynamic>> getRecordings({int? deviceId}) async {
+    final query = deviceId != null ? '?device_id=$deviceId' : '';
+    final response = await _authed('GET', '/recordings$query');
+    if (response.statusCode == 200) return jsonDecode(response.body);
+    throw _handleError(response, 'Error al cargar grabaciones');
+  }
+
+  /// Sube un clip grabado en el dispositivo (multipart).
+  static Future<Map<String, dynamic>> uploadRecording({
+    required Uint8List bytes,
+    required String extension,
+    int? deviceId,
+    int durationSeconds = 0,
+  }) async {
+    final token = await getToken();
+    if (token == null || token.isEmpty) await _expireSession();
+
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/recordings'))
+      ..headers['Authorization'] = 'Bearer $token'
+      ..headers['Accept'] = 'application/json'
+      ..fields['duration_seconds'] = '$durationSeconds'
+      ..files.add(http.MultipartFile.fromBytes(
+        'file',
+        bytes,
+        filename: 'grabacion_${DateTime.now().millisecondsSinceEpoch}.$extension',
+      ));
+    if (deviceId != null) request.fields['device_id'] = '$deviceId';
+
+    final streamed = await request.send().timeout(const Duration(minutes: 3));
+    final response = await http.Response.fromStream(streamed);
+    if (response.statusCode == 401) await _expireSession();
+    if (response.statusCode == 201) return jsonDecode(response.body);
+    throw _handleError(response, 'Error al subir la grabación');
+  }
+
+  static Future<void> deleteRecording(int id) async {
+    final response = await _authed('DELETE', '/recordings/$id');
+    if (response.statusCode != 200) {
+      throw _handleError(response, 'Error al eliminar la grabación');
+    }
+  }
+
+  /// La API devuelve un enlace firmado relativo (/api/recordings/1/file?...);
+  /// aquí se completa con el dominio del servidor.
+  static Uri recordingUri(String signedPath) {
+    if (signedPath.startsWith('http')) return Uri.parse(signedPath);
+    return Uri.parse(Uri.parse(baseUrl).origin + signedPath);
   }
 
   // ── Mapa ──────────────────────────────────────────────────────

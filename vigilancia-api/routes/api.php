@@ -10,11 +10,18 @@ use App\Http\Controllers\AlertController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\RecordingController;
 
 // ── Rutas públicas ────────────────────────────────────────────────
 Route::post('/register',         [AuthController::class, 'register']);
 Route::post('/login',            [AuthController::class, 'login']);
 Route::post('/forgot-password',  [AuthController::class, 'forgotPassword']);
+
+// Archivo de una grabación: se abre con un enlace firmado que vence en 30 min
+// (el reproductor de video no puede enviar el token en la cabecera).
+Route::get('/recordings/{id}/file', [RecordingController::class, 'file'])
+    ->middleware('signed:relative')
+    ->name('recordings.file');
 
 // ── Rutas protegidas ──────────────────────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
@@ -49,6 +56,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Reportes (el rol visitante no tiene acceso)
     Route::get('/reports', [ReportController::class, 'index'])->middleware('role:admin,operator');
+
+    // Grabaciones
+    Route::get('/recordings',          [RecordingController::class, 'index']);
+    Route::post('/recordings',         [RecordingController::class, 'store']);
+    Route::delete('/recordings/{id}',  [RecordingController::class, 'destroy']);
 
     // Mapa
     Route::get('/map/nodes', [MapController::class, 'nodes']);

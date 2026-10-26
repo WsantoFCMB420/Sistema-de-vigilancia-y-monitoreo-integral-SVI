@@ -639,14 +639,13 @@ class AppSidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = AppColors.of(context);
+    // El color y el borde van en el Material (no en un DecoratedBox) para
+    // que los ListTile del menú pinten su fondo y su efecto al tocar.
     return Material(
       color: c.sidebar,
+      shape: Border(right: BorderSide(color: c.border)),
       child: Container(
       width: 264,
-      decoration: BoxDecoration(
-        color: c.sidebar,
-        border: Border(right: BorderSide(color: c.border)),
-      ),
       child: SafeArea(
         child: Column(
           children: [

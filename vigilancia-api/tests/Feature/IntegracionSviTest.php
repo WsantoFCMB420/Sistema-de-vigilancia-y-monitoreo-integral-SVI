@@ -4,6 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\Alert;
 use App\Models\Device;
+use App\Models\Recording;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -157,11 +160,39 @@ class IntegracionSviTest extends TestCase
     /** CI-07 Grabaciones (datos de prueba) */
     public function test_ci07_grabaciones(): void
     {
-        $user = User::factory()->create(['role' => 'admin']);
-        $token = $this->login($user);
+        Storage::fake('local');
+        $owner = User::factory()->create(['role' => 'operator']);
+        $other = User::factory()->create(['role' => 'viewer']);
+        $cam = Device::create(['title' => 'Cam Patio', 'status' => 'Activo', 'user_id' => $owner->id]);
+        $tOwner = $this->login($owner);
 
-        // La API debe exponer el listado de grabaciones.
-        $this->as($token)->getJson('/api/recordings')->assertOk();
+        // Subir un clip de prueba
+        $clip = UploadedFile::fake()->create('clip.webm', 300, 'video/webm');
+        $res = $this->as($tOwner)->post('/api/recordings', [
+            'file' => $clip, 'device_id' => $cam->id, 'duration_seconds' => 12,
+        ], ['Accept' => 'application/json'])->assertCreated();
+        $id = $res->json('recording.id');
+        $this->assertDatabaseHas('recordings', ['id' => $id, 'device_id' => $cam->id, 'user_id' => $owner->id]);
+        Storage::disk('local')->assertExists(Recording::find($id)->file_path);
+
+        // Listado por cámara
+        $list = $this->as($tOwner)->getJson("/api/recordings?device_id={$cam->id}")->assertOk()->json();
+        $this->assertCount(1, $list);
+        $this->assertSame(12, $list[0]['duration_seconds']);
+
+        // Reproducción: el enlace firmado entrega el video; sin firma, no
+        $this->app['auth']->forgetGuards();
+        $this->get($list[0]['url'])->assertOk()->assertHeader('Content-Type', 'video/webm');
+        $this->get("/api/recordings/{$id}/file")->assertForbidden();
+
+        // Otro usuario no la ve ni la borra
+        $tOther = $this->login($other);
+        $this->assertCount(0, $this->as($tOther)->getJson('/api/recordings')->json());
+        $this->as($tOther)->deleteJson("/api/recordings/{$id}")->assertForbidden();
+
+        // El dueño la elimina
+        $this->as($tOwner)->deleteJson("/api/recordings/{$id}")->assertOk();
+        $this->assertDatabaseMissing('recordings', ['id' => $id]);
     }
 
     /** CI-08 Cierre de sesión */
